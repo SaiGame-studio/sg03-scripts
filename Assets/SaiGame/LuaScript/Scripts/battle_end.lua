@@ -5,9 +5,7 @@
 --   Content-Type: application/json
 -- Example request body:
 -- {
---   "payload": {
---     "session_id": "battle-session-uuid"
---   }
+--   "payload": {}
 -- }
 
 local validate_payload -- forward declaration
@@ -20,15 +18,19 @@ local function main()
     local err = validate_payload()
     if err ~= nil then output.error = err ; return end
 
-    local state, load_err = load_session()
+    local session_id, session_err = game.battle_session_current_id()
+    if session_err ~= nil then output.error = session_err ; return end
+    if session_id == nil or session_id == "" then output.error = "current battle session not found" ; return end
+
+    local state, load_err = load_session(session_id)
     if load_err ~= nil then output.error = load_err ; return end
 
     local winner, alpha_hp, omega_hp = determine_winner(state)
 
-    local end_err = end_session(state, winner)
+    local end_err = end_session(session_id, state, winner)
     if end_err ~= nil then output.error = end_err ; return end
 
-    output.session_id = payload.session_id
+    output.session_id = session_id
     output.status     = "ended"
     output.winner     = winner
     output.turn       = state.turn
@@ -36,7 +38,7 @@ local function main()
     output.omega_hp   = omega_hp
 
     if winner == "alpha" then
-        local drops, drop_err = open_drop_packs(state)
+        local drops, drop_err = open_drop_packs(session_id, state)
         if drop_err ~= nil then output.error = drop_err ; return end
         output.drops = drops
     end
@@ -45,14 +47,11 @@ end
 -- ─── Functions ───────────────────────────────────────────────────────────────
 
 validate_payload = function()
-    if payload.session_id == nil or payload.session_id == "" then
-        return "session_id is required"
-    end
     return nil
 end
 
-load_session = function()
-    local state, err = game.battle_session_get(payload.session_id)
+load_session = function(session_id)
+    local state, err = game.battle_session_get(session_id)
     if err ~= nil then return nil, err end
     if state == nil then return nil, "battle session not found" end
     return state, nil
@@ -70,24 +69,24 @@ determine_winner = function(state)
     return winner, alpha_hp, omega_hp
 end
 
-end_session = function(state, winner)
+end_session = function(session_id, state, winner)
     local end_data = {
         winner   = winner,
         reason   = "completed",
         turn     = state.turn or 1,
         ended_at = ctx.timestamp,
     }
-    return game.battle_session_end(payload.session_id, end_data)
+    return game.battle_session_end(session_id, end_data)
 end
 
-open_drop_packs = function(state)
+open_drop_packs = function(session_id, state)
     local enemy = state.metadata and state.metadata.omega
     if enemy == nil then return {}, nil end
 
     local pack_ids = enemy.metadata and enemy.metadata.drop_pack_ids
     if pack_ids == nil or #pack_ids == 0 then return {}, nil end
 
-    local drops, err = game.open_entity_drop_packs(payload.session_id, enemy.id, pack_ids)
+    local drops, err = game.open_entity_drop_packs(session_id, enemy.id, pack_ids)
     if err ~= nil then return nil, err end
     return drops or {}, nil
 end
