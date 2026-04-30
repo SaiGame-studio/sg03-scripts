@@ -22,7 +22,6 @@ local function main()
     if err ~= nil then output.error = err ; return end
 
     local session_id, session_err = game.battle_session_current_id()
-    if session_err ~= nil then output.error = session_err ; return end
     if session_id == nil or session_id == "" then output.error = "current battle session not found" ; return end
 
     local state, load_err = load_session(session_id)
