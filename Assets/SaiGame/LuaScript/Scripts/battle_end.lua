@@ -5,11 +5,14 @@
 --   Content-Type: application/json
 -- Example request body:
 -- {
---   "payload": {}
+--   "payload": {
+--     "session_id": "battle-session-uuid"  (optional, defaults to current active session)
+--   }
 -- }
 
-local validate_payload -- forward declaration
-local load_session     -- forward declaration
+local validate_payload   -- forward declaration
+local resolve_session_id -- forward declaration
+local load_session       -- forward declaration
 local determine_winner -- forward declaration
 local end_session      -- forward declaration
 local open_drop_packs  -- forward declaration
@@ -18,9 +21,8 @@ local function main()
     local err = validate_payload()
     if err ~= nil then output.error = err ; return end
 
-    local session_id, session_err = game.battle_session_current_id()
+    local session_id, session_err = resolve_session_id()
     if session_err ~= nil then output.error = session_err ; return end
-    if session_id == nil or session_id == "" then output.error = "current battle session not found" ; return end
 
     local state, load_err = load_session(session_id)
     if load_err ~= nil then output.error = load_err ; return end
@@ -48,6 +50,16 @@ end
 
 validate_payload = function()
     return nil
+end
+
+resolve_session_id = function()
+    if payload.session_id ~= nil and payload.session_id ~= "" then
+        return payload.session_id, nil
+    end
+    local session_id, err = game.battle_session_current_id()
+    if err ~= nil then return nil, err end
+    if session_id == nil or session_id == "" then return nil, "current battle session not found" end
+    return session_id, nil
 end
 
 load_session = function(session_id)

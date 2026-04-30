@@ -29,8 +29,7 @@ local function main()
     local err = validate_payload()
     if err ~= nil then output.error = err ; return end
 
-    local existing_id, existing_err = game.battle_session_current_id()
-    if existing_err ~= nil then output.error = existing_err ; return end
+    local existing_id = game.battle_session_current_id()
     if existing_id ~= nil and existing_id ~= "" then
         output.error      = "player already has an active battle session"
         output.session_id = existing_id
