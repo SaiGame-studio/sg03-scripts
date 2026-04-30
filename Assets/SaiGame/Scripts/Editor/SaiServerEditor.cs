@@ -1,3 +1,4 @@
+using System.IO;
 using UnityEngine;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -135,33 +136,32 @@ namespace SaiGame.Services
             SaiServer saiServer = (SaiServer)target;
 
             EditorGUILayout.Space(10);
+            EditorGUILayout.LabelField("Environment", EditorStyles.boldLabel);
+
+            bool envExists = EnvLoader.EnvFileExists();
+            EditorGUILayout.HelpBox(
+                envExists ? ".env file found at project root." : ".env file not found. Create one from .env.example at the project root.",
+                envExists ? MessageType.Info : MessageType.Warning);
+
+            GUI.enabled = envExists;
+            bool current = EnvAutoLoader.LoadEnvOnPlay;
+            bool updated = EditorGUILayout.Toggle(
+                new GUIContent(
+                    "Load .env on Play",
+                    "When checked, GAME_ID / USERNAME / PASSWORD are applied from .env automatically when entering Play mode. " +
+                    "Credentials are written to PlayerPrefs only — never saved to the scene file."),
+                current);
+            if (updated != current)
+            {
+                EnvAutoLoader.LoadEnvOnPlay = updated;
+            }
+            GUI.enabled = true;
+
+            EditorGUILayout.Space(10);
             EditorGUILayout.LabelField("Service Actions", EditorStyles.boldLabel);
 
-            EditorGUILayout.BeginHorizontal();
-            GUI.backgroundColor = new Color(0.3f, 0.9f, 0.5f);
-            if (GUILayout.Button("Save Game ID to PlayerPrefs", GUILayout.Height(30)))
-            {
-                if (saiServer != null)
-                {
-                    saiServer.ManualSaveGameId();
-                    if (SaiServer.Instance == null || SaiServer.Instance.ShowDebug)
-                        Debug.Log("✓ Game ID saved to PlayerPrefs!");
-                }
-            }
-            GUI.backgroundColor = new Color(0.9f, 0.3f, 0.3f);
-            if (GUILayout.Button("Clear PlayerPrefs", GUILayout.Height(30)))
-            {
-                if (saiServer != null)
-                {
-                    saiServer.ManualClearGameId();
-                    if (SaiServer.Instance == null || SaiServer.Instance.ShowDebug)
-                        Debug.Log("✓ Game ID cleared from PlayerPrefs!");
-                }
-            }
-            GUI.backgroundColor = Color.white;
-            EditorGUILayout.EndHorizontal();
-
             EditorGUILayout.Space(4);
+            EditorGUILayout.BeginHorizontal();
             GUI.backgroundColor = new Color(1f, 0.65f, 0.2f);
             if (GUILayout.Button("Full Reset", GUILayout.Height(28)))
             {
@@ -199,12 +199,29 @@ namespace SaiGame.Services
                             EditorUtility.SetDirty(component);
                         }
 
+                        for (int i = 0; i < hierarchyComponents.Length; i++)
+                        {
+                            SaiBehaviour component = hierarchyComponents[i];
+                            if (component == null) continue;
+
+                            saiServer.ManualInvokeLoadComponents(component);
+                            EditorUtility.SetDirty(component);
+                        }
+
                         EditorSceneManager.MarkSceneDirty(saiServer.gameObject.scene);
                         EditorUtility.DisplayDialog("Full Reset Complete", $"Reset executed on {resetCount}/{totalCount} SaiBehaviour component(s).", "OK");
                     }
                 }
             }
             GUI.backgroundColor = Color.white;
+
+            GUI.backgroundColor = new Color(0.4f, 0.85f, 0.55f);
+            if (GUILayout.Button("Create .env", GUILayout.Height(28)))
+            {
+                this.CreateEnvFileFromExample();
+            }
+            GUI.backgroundColor = Color.white;
+            EditorGUILayout.EndHorizontal();
 
             EditorGUILayout.Space(5);
 
@@ -243,6 +260,27 @@ namespace SaiGame.Services
                 }
             }
             EditorGUILayout.EndHorizontal();
+        }
+
+        private void CreateEnvFileFromExample()
+        {
+            string projectRoot = Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
+            string destPath = Path.Combine(projectRoot, ".env");
+            string sourcePath = Path.GetFullPath("Assets/SaiGame/.env.example");
+
+            if (!File.Exists(sourcePath))
+            {
+                EditorUtility.DisplayDialog(".env.example Not Found", $".env.example was not found at:\n{sourcePath}", "OK");
+                return;
+            }
+
+            if (!File.Exists(destPath))
+            {
+                File.Copy(sourcePath, destPath);
+                EditorUtility.DisplayDialog(".env Created", ".env created at project root from .env.example.", "OK");
+            }
+
+            EditorUtility.OpenWithDefaultApp(destPath);
         }
 
         private bool ResetComponentSerializedFieldsToDefaults(Component targetComponent)

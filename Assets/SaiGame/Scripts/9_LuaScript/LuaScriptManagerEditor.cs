@@ -163,25 +163,27 @@ namespace SaiGame.Services
                 this.serializedObject.ApplyModifiedProperties();
 
                 EditorGUILayout.BeginHorizontal();
-                if (hasLocalFile.boolValue)
+
+                // Download: backend has file but local does not
+                if (hasBackendScript.boolValue && !hasLocalFile.boolValue)
                 {
-                    if (this.DrawColoredButton("Create", new Color(0.3f, 0.9f, 0.5f)))
+                    if (this.DrawColoredButton("Download", new Color(0.4f, 0.7f, 1f)))
+                    {
+                        this.DownloadScript(index, this.GetScriptDisplayName(fileName, scriptName));
+                    }
+                }
+
+                // Upload New: local has file but backend does not
+                if (hasLocalFile.boolValue && !hasBackendScript.boolValue)
+                {
+                    if (this.DrawColoredButton("Upload New", new Color(0.3f, 0.9f, 0.5f)))
                     {
                         this.CreateScriptApi(index, this.GetScriptDisplayName(fileName, scriptName));
                     }
                 }
-                else
-                {
-                    using (new EditorGUI.DisabledScope(!hasBackendScript.boolValue))
-                    {
-                        if (this.DrawColoredButton("Download", new Color(0.4f, 0.7f, 1f)))
-                        {
-                            this.DownloadScript(index, this.GetScriptDisplayName(fileName, scriptName));
-                        }
-                    }
-                }
 
-                using (new EditorGUI.DisabledScope(!hasLocalFile.boolValue || !hasBackendScript.boolValue))
+                // Update: both local and backend have files
+                if (hasLocalFile.boolValue && hasBackendScript.boolValue)
                 {
                     if (this.DrawColoredButton("Update", new Color(1f, 0.75f, 0.25f)))
                     {
