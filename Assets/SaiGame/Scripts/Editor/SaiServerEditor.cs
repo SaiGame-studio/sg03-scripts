@@ -1,0 +1,283 @@
+using UnityEngine;
+using UnityEditor;
+using UnityEditor.SceneManagement;
+using System;
+
+namespace SaiGame.Services
+{
+    [CustomEditor(typeof(SaiServer))]
+    public class SaiServerEditor : Editor
+    {
+        private bool showServiceReferences = false;
+        private bool showDebugSettings = false;
+        private static readonly string[] SERVER_ENDPOINT_OPTIONS =
+        {
+            "Local API (HTTP) - local-api.saigame.studio:82",
+            "Production API (HTTPS) - api.saigame.studio"
+        };
+
+        public override void OnInspectorGUI()
+        {
+            this.serializedObject.Update();
+
+            EditorGUILayout.Space(5);
+
+            GUIStyle versionStyle = new GUIStyle(EditorStyles.boldLabel)
+            {
+                alignment = TextAnchor.MiddleCenter,
+                fontSize = 12
+            };
+
+            GUIStyle packageStyle = new GUIStyle(EditorStyles.label)
+            {
+                alignment = TextAnchor.MiddleCenter,
+                fontSize = 10,
+                fontStyle = FontStyle.Italic
+            };
+
+            EditorGUILayout.LabelField(SaiServer.PACKAGE_NAME, packageStyle);
+            EditorGUILayout.LabelField($"v{SaiServer.PACKAGE_VERSION}", versionStyle);
+
+            EditorGUILayout.Space(5);
+            EditorGUILayout.LabelField("", GUI.skin.horizontalSlider);
+            EditorGUILayout.Space(5);
+
+            using (new EditorGUI.DisabledScope(true))
+            {
+                EditorGUILayout.PropertyField(this.serializedObject.FindProperty("m_Script"));
+            }
+
+            EditorGUILayout.Space(5);
+            EditorGUILayout.LabelField("Server Configuration", EditorStyles.boldLabel);
+            SerializedProperty serverEndpointProperty = this.serializedObject.FindProperty("serverEndpoint");
+            int currentIndex = Mathf.Clamp(serverEndpointProperty.enumValueIndex, 0, SERVER_ENDPOINT_OPTIONS.Length - 1);
+            int newIndex = EditorGUILayout.Popup("Server Endpoint", currentIndex, SERVER_ENDPOINT_OPTIONS);
+            if (newIndex != currentIndex)
+            {
+                serverEndpointProperty.enumValueIndex = newIndex;
+                this.serializedObject.ApplyModifiedProperties();
+                SaiServer svc = (SaiServer)this.target;
+                if (svc != null) svc.ManualSaveServerEndpoint();
+            }
+
+            // Service References foldout
+            EditorGUILayout.Space(2);
+            this.showServiceReferences = EditorGUILayout.Foldout(this.showServiceReferences, "Service References", true);
+            if (this.showServiceReferences)
+            {
+                EditorGUI.indentLevel++;
+
+                // ── Root (SaiServer) ────────────────────────────────────────
+                EditorGUILayout.LabelField("Root Object", EditorStyles.miniBoldLabel);
+                EditorGUILayout.PropertyField(this.serializedObject.FindProperty("saiAuth"),              new GUIContent("Sai Auth"));
+                EditorGUILayout.PropertyField(this.serializedObject.FindProperty("gamerProgress"),        new GUIContent("Gamer Progress"));
+                EditorGUILayout.PropertyField(this.serializedObject.FindProperty("mailbox"),              new GUIContent("Mailbox"));
+                EditorGUILayout.PropertyField(this.serializedObject.FindProperty("playerEvent"),          new GUIContent("Player Event"));
+                EditorGUILayout.PropertyField(this.serializedObject.FindProperty("leaderboard"),          new GUIContent("Leaderboard"));
+
+                // ── Item child ───────────────────────────────────────────────
+                EditorGUILayout.Space(2);
+                EditorGUILayout.LabelField("Item Child Object", EditorStyles.miniBoldLabel);
+                EditorGUILayout.PropertyField(this.serializedObject.FindProperty("playerItem"),           new GUIContent("Player Item"));
+                EditorGUILayout.PropertyField(this.serializedObject.FindProperty("playerContainer"),      new GUIContent("Player Container"));
+                EditorGUILayout.PropertyField(this.serializedObject.FindProperty("itemGenerator"),        new GUIContent("Item Generator"));
+                EditorGUILayout.PropertyField(this.serializedObject.FindProperty("equipmentSlotManager"), new GUIContent("Equipment Slot"));
+                EditorGUILayout.PropertyField(this.serializedObject.FindProperty("itemTag"),              new GUIContent("Item Tag"));
+                EditorGUILayout.PropertyField(this.serializedObject.FindProperty("itemPreset"),           new GUIContent("Item Preset"));
+                EditorGUILayout.PropertyField(this.serializedObject.FindProperty("itemAddDeduct"),        new GUIContent("Item Add Deduct"));
+                EditorGUILayout.PropertyField(this.serializedObject.FindProperty("itemCrafting"),         new GUIContent("Player Crafting"));
+                EditorGUILayout.PropertyField(this.serializedObject.FindProperty("itemMove"),              new GUIContent("Item Move"));
+                EditorGUILayout.PropertyField(this.serializedObject.FindProperty("itemSwap"),              new GUIContent("Item Swap"));
+                EditorGUILayout.PropertyField(this.serializedObject.FindProperty("shop"),                 new GUIContent("Shop"));
+
+                // ── Quest child ──────────────────────────────────────────────
+                EditorGUILayout.Space(2);
+                EditorGUILayout.LabelField("Quest Child Object", EditorStyles.miniBoldLabel);
+                EditorGUILayout.PropertyField(this.serializedObject.FindProperty("questProgressor"),      new GUIContent("Quest Progressor"));
+                EditorGUILayout.PropertyField(this.serializedObject.FindProperty("questHistory"),         new GUIContent("Quest History"));
+                EditorGUILayout.PropertyField(this.serializedObject.FindProperty("chainQuest"),           new GUIContent("Chain Quest"));
+                EditorGUILayout.PropertyField(this.serializedObject.FindProperty("dailyQuest"),           new GUIContent("Daily Quest"));
+
+                // ── Battle child ─────────────────────────────────────────────
+                EditorGUILayout.Space(2);
+                EditorGUILayout.LabelField("Battle Child Object", EditorStyles.miniBoldLabel);
+                EditorGUILayout.PropertyField(this.serializedObject.FindProperty("battleSessions"),       new GUIContent("Battle Sessions"));
+                EditorGUILayout.PropertyField(this.serializedObject.FindProperty("battleScript"),         new GUIContent("Battle Script"));
+
+                EditorGUI.indentLevel--;
+            }
+
+            // Debug Settings foldout
+            EditorGUILayout.Space(5);
+            this.showDebugSettings = EditorGUILayout.Foldout(this.showDebugSettings, "Debug Settings", true);
+            if (this.showDebugSettings)
+            {
+                EditorGUI.indentLevel++;
+                EditorGUILayout.PropertyField(this.serializedObject.FindProperty("showButtonsLog"), new GUIContent("Show Buttons Log"));
+                EditorGUILayout.PropertyField(this.serializedObject.FindProperty("showCallbackLog"), new GUIContent("Show Callback Log"));
+                EditorGUILayout.PropertyField(this.serializedObject.FindProperty("showDebugLog"), new GUIContent("Show Debug Log"));
+                EditorGUILayout.PropertyField(this.serializedObject.FindProperty("showUrlRequest"), new GUIContent("Show Url Request"));
+                EditorGUILayout.PropertyField(this.serializedObject.FindProperty("showJsonRequest"), new GUIContent("Show Json Request"));
+                EditorGUILayout.PropertyField(this.serializedObject.FindProperty("showJsonResponse"), new GUIContent("Show Json Response"));
+                EditorGUI.indentLevel--;
+            }
+
+            EditorGUILayout.Space(5);
+            EditorGUILayout.LabelField("Game Configuration", EditorStyles.boldLabel);
+            EditorGUILayout.PropertyField(this.serializedObject.FindProperty("gameId"), new GUIContent("Game Id"));
+
+            EditorGUILayout.Space(5);
+            EditorGUILayout.LabelField("API Settings", EditorStyles.boldLabel);
+            EditorGUILayout.PropertyField(this.serializedObject.FindProperty("requestTimeout"), new GUIContent("Request Timeout"));
+
+            this.serializedObject.ApplyModifiedProperties();
+
+            SaiServer saiServer = (SaiServer)target;
+
+            EditorGUILayout.Space(10);
+            EditorGUILayout.LabelField("Service Actions", EditorStyles.boldLabel);
+
+            EditorGUILayout.BeginHorizontal();
+            GUI.backgroundColor = new Color(0.3f, 0.9f, 0.5f);
+            if (GUILayout.Button("Save Game ID to PlayerPrefs", GUILayout.Height(30)))
+            {
+                if (saiServer != null)
+                {
+                    saiServer.ManualSaveGameId();
+                    if (SaiServer.Instance == null || SaiServer.Instance.ShowDebug)
+                        Debug.Log("✓ Game ID saved to PlayerPrefs!");
+                }
+            }
+            GUI.backgroundColor = new Color(0.9f, 0.3f, 0.3f);
+            if (GUILayout.Button("Clear PlayerPrefs", GUILayout.Height(30)))
+            {
+                if (saiServer != null)
+                {
+                    saiServer.ManualClearGameId();
+                    if (SaiServer.Instance == null || SaiServer.Instance.ShowDebug)
+                        Debug.Log("✓ Game ID cleared from PlayerPrefs!");
+                }
+            }
+            GUI.backgroundColor = Color.white;
+            EditorGUILayout.EndHorizontal();
+
+            EditorGUILayout.Space(4);
+            GUI.backgroundColor = new Color(1f, 0.65f, 0.2f);
+            if (GUILayout.Button("Full Reset", GUILayout.Height(28)))
+            {
+                if (saiServer != null)
+                {
+                    bool confirmed = EditorUtility.DisplayDialog(
+                        "Confirm Full Reset",
+                        "This will invoke reset on all components in this object and all child objects. Continue?",
+                        "Reset All",
+                        "Cancel");
+
+                    if (confirmed)
+                    {
+                        SaiBehaviour[] hierarchyComponents = saiServer.GetComponentsInChildren<SaiBehaviour>(true);
+                        Undo.RecordObjects(hierarchyComponents, "SaiServer Full Reset");
+
+                        int resetCount = 0;
+                        int totalCount = hierarchyComponents.Length;
+
+                        for (int i = 0; i < hierarchyComponents.Length; i++)
+                        {
+                            SaiBehaviour component = hierarchyComponents[i];
+                            if (component == null)
+                            {
+                                continue;
+                            }
+
+                            bool hookInvoked = saiServer.ManualInvokeResetHooks(component);
+                            bool serializedReset = this.ResetComponentSerializedFieldsToDefaults(component);
+                            if (hookInvoked || serializedReset)
+                            {
+                                resetCount++;
+                            }
+
+                            EditorUtility.SetDirty(component);
+                        }
+
+                        EditorSceneManager.MarkSceneDirty(saiServer.gameObject.scene);
+                        EditorUtility.DisplayDialog("Full Reset Complete", $"Reset executed on {resetCount}/{totalCount} SaiBehaviour component(s).", "OK");
+                    }
+                }
+            }
+            GUI.backgroundColor = Color.white;
+
+            EditorGUILayout.Space(5);
+
+            EditorGUILayout.BeginHorizontal();
+            if (GUILayout.Button("Test Connection", GUILayout.Height(25)))
+            {
+                if (saiServer != null)
+                {
+                    saiServer.TestConnection(success =>
+                    {
+                        if (success)
+                        {
+                            if (SaiServer.Instance == null || SaiServer.Instance.ShowDebug)
+                                Debug.Log("✓ Connection test passed!");
+                        }
+                        else
+                        {
+                            if (SaiServer.Instance == null || SaiServer.Instance.ShowDebug)
+                                Debug.LogError("✗ Connection test failed!");
+                        }
+                    });
+                }
+            }
+
+            if (GUILayout.Button("Show Service Info", GUILayout.Height(25)))
+            {
+                if (saiServer != null)
+                {
+                    if (SaiServer.Instance == null || SaiServer.Instance.ShowDebug)
+                    {
+                        Debug.Log("<color=#FFCC00><b>[SaiServer] ► Show Service Info</b></color>");
+                        bool hasUser = saiServer.CurrentUser != null && !string.IsNullOrEmpty(saiServer.CurrentUser.username);
+                        string userInfo = hasUser ? $"User: {saiServer.CurrentUser.username}" : "No user";
+                        Debug.Log($"Base URL: {saiServer.BaseUrl}, Authenticated: {saiServer.IsAuthenticated}, {userInfo}");
+                    }
+                }
+            }
+            EditorGUILayout.EndHorizontal();
+        }
+
+        private bool ResetComponentSerializedFieldsToDefaults(Component targetComponent)
+        {
+            if (targetComponent == null)
+            {
+                return false;
+            }
+
+            Type componentType = targetComponent.GetType();
+            GameObject tempObject = new GameObject($"__TempReset_{componentType.Name}");
+            tempObject.hideFlags = HideFlags.HideAndDontSave;
+
+            try
+            {
+                Component tempComponent = tempObject.AddComponent(componentType);
+                if (tempComponent == null)
+                {
+                    return false;
+                }
+
+                EditorUtility.CopySerialized(tempComponent, targetComponent);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+            finally
+            {
+                if (tempObject != null)
+                {
+                    DestroyImmediate(tempObject);
+                }
+            }
+        }
+    }
+}
