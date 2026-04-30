@@ -16,12 +16,14 @@
 local DECK_CARD_MIN = 25
 local DECK_CARD_MAX = 52
 
-local check_enemy          -- forward declaration
-local verify_player_preset -- forward declaration
-local validate_payload     -- forward declaration
-local resolve_enemy        -- forward declaration
-local resolve_mode         -- forward declaration
-local build_state          -- forward declaration
+local check_enemy            -- forward declaration
+local verify_player_preset   -- forward declaration
+local validate_payload       -- forward declaration
+local resolve_enemy          -- forward declaration
+local resolve_mode           -- forward declaration
+local build_state            -- forward declaration
+local load_player_the_source -- forward declaration
+local load_enemy_the_source  -- forward declaration
 
 local function main()
     local err = validate_payload()
@@ -36,9 +38,14 @@ local function main()
     local preset_err = verify_player_preset(payload.preset_instance_id)
     if preset_err ~= nil then output.error = preset_err ; return end
 
+    local player_the_source, player_src_err = load_player_the_source(payload.preset_instance_id)
+    if player_src_err ~= nil then output.error = player_src_err ; return end
+
+    local enemy_the_source = load_enemy_the_source(enemy)
+
     local selected_mode = resolve_mode(enemy)
 
-    local state = build_state(enemy, selected_mode)
+    local state = build_state(enemy, selected_mode, player_the_source, enemy_the_source)
 
     local session_id, create_err = game.battle_session_create(state)
     if create_err ~= nil then output.error = create_err ; return end
@@ -46,7 +53,7 @@ local function main()
     output.session_id = session_id
     output.status     = state.status
     output.turn       = state.turn
-    output.enemy      = enemy
+    output.omega      = enemy
 end
 
 -- ─── Functions ───────────────────────────────────────────────────────────────
@@ -86,20 +93,52 @@ resolve_mode = function(enemy)
     return selected
 end
 
-build_state = function(enemy, selected_mode)
+build_state = function(enemy, selected_mode, player_the_source, enemy_the_source)
     local hp_map = { fast = 4000, normal = 7000, long = 16000 }
     local hp = hp_map[selected_mode]
     return {
-        player_id         = ctx.player_id,
-        player_hp         = hp,
-        preset_instance_id = payload.preset_instance_id,
-        enemy             = enemy,
-        enemy_hp          = hp,
-        battle_mode       = selected_mode,
-        turn              = 1,
-        status            = "active",
-        started_at        = ctx.timestamp,
+        metadata = {
+            alpha_id           = ctx.player_id,
+            preset_instance_id = payload.preset_instance_id,
+            omega              = enemy,
+            battle_mode        = selected_mode,
+            started_at         = ctx.timestamp,
+        },
+        alpha_hp           = hp,
+        alpha_the_source   = player_the_source,
+        alpha_the_void     = {},
+        alpha_hand         = {},  -- max 7 slots
+        alpha_front_line   = {},  -- max 5 slots
+        alpha_back_line    = {},  -- max 5 slots
+        omega_hp           = hp,
+        omega_the_source   = enemy_the_source,
+        omega_the_void     = {},
+        omega_hand         = {},  -- max 7 slots
+        omega_front_line   = {},  -- max 5 slots
+        omega_back_line    = {},  -- max 5 slots
+        turn               = 1,  -- increments when alpha or omega runs out of actions
+        action             = 1,  -- each action is one card played
+        status             = "active",
     }
+end
+
+load_player_the_source = function(preset_instance_id)
+    local slots, err = game.get_preset_slots(preset_instance_id)
+    if err ~= nil then return nil, err end
+    return slots, nil
+end
+
+load_enemy_the_source = function(enemy)
+    local source = {}
+    if enemy.abilities ~= nil then
+        for _, ability in ipairs(enemy.abilities) do
+            local count = ability.card_count or 0
+            for _ = 1, count do
+                source[#source + 1] = ability
+            end
+        end
+    end
+    return source
 end
 
 verify_player_preset = function(preset_instance_id)
