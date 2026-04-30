@@ -48,6 +48,7 @@ Available game API only:
 - game.get_preset_slots(preset_id) -> list, err
 - game.get_equipped_in_slot(slot_key) -> table, err
 - game.battle_session_create(state) -> session_id, err
+- game.battle_session_current_id() -> session_id, err
 - game.battle_session_get(session_id) -> table, err
 - game.battle_session_update(session_id, state) -> err
 - game.battle_session_end(session_id [, end_data]) -> err

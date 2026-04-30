@@ -29,6 +29,13 @@ local function main()
     local err = validate_payload()
     if err ~= nil then output.error = err ; return end
 
+    local existing_id = game.battle_session_current_id()
+    if existing_id ~= nil and existing_id ~= "" then
+        output.error      = "player already has an active battle session"
+        output.session_id = existing_id
+        return
+    end
+
     local enemy, fetch_err = resolve_enemy()
     if fetch_err ~= nil then output.error = fetch_err ; return end
 
@@ -50,10 +57,23 @@ local function main()
     local session_id, create_err = game.battle_session_create(state)
     if create_err ~= nil then output.error = create_err ; return end
 
-    output.session_id = session_id
-    output.status     = state.status
-    output.turn       = state.turn
-    output.omega      = enemy
+    output.session_id        = session_id
+    output.metadata          = state.metadata
+    output.alpha_hp          = state.alpha_hp
+    output.alpha_the_source  = state.alpha_the_source
+    output.alpha_the_void    = state.alpha_the_void
+    output.alpha_hand        = state.alpha_hand
+    output.alpha_front_line  = state.alpha_front_line
+    output.alpha_back_line   = state.alpha_back_line
+    output.omega_hp          = state.omega_hp
+    output.omega_the_source  = state.omega_the_source
+    output.omega_the_void    = state.omega_the_void
+    output.omega_hand        = state.omega_hand
+    output.omega_front_line  = state.omega_front_line
+    output.omega_back_line   = state.omega_back_line
+    output.turn              = state.turn
+    output.action            = state.action
+    output.status            = state.status
 end
 
 -- ─── Functions ───────────────────────────────────────────────────────────────

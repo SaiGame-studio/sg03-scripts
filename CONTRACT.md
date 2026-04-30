@@ -97,6 +97,7 @@ end
 | `game.get_preset_slots(preset_id)` | `list, err` | Fetches preset slots. |
 | `game.get_equipped_in_slot(slot_key)` | `table, err` | Fetches the player's equipped item in a slot. |
 | `game.battle_session_create(state)` | `session_id, err` | Creates an active battle session. |
+| `game.battle_session_current_id()` | `session_id, err` | Returns the current active battle session ID for the script's game/player context. |
 | `game.battle_session_get(session_id)` | `table, err` | Reads battle session state. |
 | `game.battle_session_update(session_id, state)` | `err` | Overwrites battle state. |
 | `game.battle_session_end(session_id [, end_data])` | `err` | Ends a battle session. |

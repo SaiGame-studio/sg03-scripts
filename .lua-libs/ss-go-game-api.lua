@@ -179,6 +179,11 @@ function SSGameAPI.get_equipped_in_slot(slot_key) end
 ---@return LuaError err
 function SSGameAPI.battle_session_create(state) end
 
+---Return the current active battle session ID for the script's game/player context.
+---@return UUID|nil session_id
+---@return LuaError err
+function SSGameAPI.battle_session_current_id() end
+
 ---Read battle session state.
 ---@param session_id UUID
 ---@return LuaMap|nil state
