@@ -140,7 +140,7 @@ namespace SaiGame.Services
 
             bool envExists = EnvLoader.EnvFileExists();
             EditorGUILayout.HelpBox(
-                envExists ? ".env file found at project root." : ".env file not found. Create one from .env.example at the project root.",
+                envExists ? ".env file found at project root." : ".env file not found. Create one from env.txt at the SaiGame folder.",
                 envExists ? MessageType.Info : MessageType.Warning);
 
             GUI.enabled = envExists;
@@ -266,11 +266,11 @@ namespace SaiGame.Services
         {
             string projectRoot = Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
             string destPath = Path.Combine(projectRoot, ".env");
-            string sourcePath = Path.GetFullPath("Assets/SaiGame/.env.example");
+            string sourcePath = Path.GetFullPath("Assets/SaiGame/env.txt");
 
             if (!File.Exists(sourcePath))
             {
-                EditorUtility.DisplayDialog(".env.example Not Found", $".env.example was not found at:\n{sourcePath}", "OK");
+                EditorUtility.DisplayDialog("env.txt Not Found", $"env.txt was not found at:\n{sourcePath}", "OK");
                 return;
             }
 
