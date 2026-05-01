@@ -13,6 +13,7 @@
 ---@field game_id UUID
 ---@field studio_id UUID
 ---@field timestamp number
+---@field script_version number Integer version of the currently executing script definition.
 ---@field [string] any
 
 ---@class SSGameAPI

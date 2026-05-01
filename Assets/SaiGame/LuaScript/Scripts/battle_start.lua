@@ -16,6 +16,14 @@
 local DECK_CARD_MIN = 25
 local DECK_CARD_MAX = 52
 
+local function gen_id()
+    local t = "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx"
+    return string.gsub(t, "[xy]", function(c)
+        local v = (c == "x") and math.random(0, 15) or math.random(8, 11)
+        return string.format("%x", v)
+    end)
+end
+
 local check_enemy            -- forward declaration
 local verify_player_preset   -- forward declaration
 local validate_payload       -- forward declaration
@@ -42,7 +50,7 @@ local function main()
     local check_err = check_enemy(enemy)
     if check_err ~= nil then output.error = check_err ; return end
 
-    local preset_err = verify_player_preset(payload.preset_instance_id)
+    local preset, preset_err = verify_player_preset(payload.preset_instance_id)
     if preset_err ~= nil then output.error = preset_err ; return end
 
     local player_the_source, player_src_err = load_player_the_source(payload.preset_instance_id)
@@ -52,25 +60,13 @@ local function main()
 
     local selected_mode = resolve_mode(enemy)
 
-    local state = build_state(enemy, selected_mode, player_the_source, enemy_the_source)
+    local state = build_state(enemy, selected_mode, player_the_source, enemy_the_source, preset)
 
     local session_id, create_err = game.battle_session_create(state)
     if create_err ~= nil then output.error = create_err ; return end
 
     output.session_id        = session_id
     output.metadata          = state.metadata
-    output.alpha_hp          = state.alpha_hp
-    output.alpha_the_source  = state.alpha_the_source
-    output.alpha_the_void    = state.alpha_the_void
-    output.alpha_hand        = state.alpha_hand
-    output.alpha_front_line  = state.alpha_front_line
-    output.alpha_back_line   = state.alpha_back_line
-    output.omega_hp          = state.omega_hp
-    output.omega_the_source  = state.omega_the_source
-    output.omega_the_void    = state.omega_the_void
-    output.omega_hand        = state.omega_hand
-    output.omega_front_line  = state.omega_front_line
-    output.omega_back_line   = state.omega_back_line
     output.turn              = state.turn
     output.action            = state.action
     output.status            = state.status
@@ -113,7 +109,7 @@ resolve_mode = function(enemy)
     return selected
 end
 
-build_state = function(enemy, selected_mode, player_the_source, enemy_the_source)
+build_state = function(enemy, selected_mode, player_the_source, enemy_the_source, preset)
     local hp_map = { fast = 4000, normal = 7000, long = 16000 }
     local hp = hp_map[selected_mode]
     return {
@@ -124,6 +120,7 @@ build_state = function(enemy, selected_mode, player_the_source, enemy_the_source
             battle_mode        = selected_mode,
             started_at         = ctx.timestamp,
         },
+        alpha_preset_metadata  = preset ~= nil and preset.metadata or nil,
         alpha_hp           = hp,
         alpha_the_source   = player_the_source,
         alpha_the_void     = {},
@@ -150,11 +147,17 @@ end
 
 load_enemy_the_source = function(enemy)
     local source = {}
+    local slot_index = 0
     if enemy.abilities ~= nil then
         for _, ability in ipairs(enemy.abilities) do
             local count = ability.card_count or 0
             for _ = 1, count do
-                source[#source + 1] = ability
+                source[#source + 1] = {
+                    id             = gen_id(),
+                    slot_index     = slot_index,
+                    item_code_name = ability.id,
+                }
+                slot_index = slot_index + 1
             end
         end
     end
@@ -163,20 +166,20 @@ end
 
 verify_player_preset = function(preset_instance_id)
     local preset, err = game.get_preset_by_id(preset_instance_id)
-    if err ~= nil then return err end
-    if preset == nil then return "preset not found" end
+    if err ~= nil then return nil, err end
+    if preset == nil then return nil, "preset not found" end
 
     local slots, slots_err = game.get_preset_slots(preset_instance_id)
-    if slots_err ~= nil then return slots_err end
+    if slots_err ~= nil then return nil, slots_err end
 
     local total = slots ~= nil and #slots or 0
     if total <= DECK_CARD_MIN then
-        return "player deck must have more than " .. DECK_CARD_MIN .. " cards (has " .. total .. ")"
+        return nil, "player deck must have more than " .. DECK_CARD_MIN .. " cards (has " .. total .. ")"
     end
     if total >= DECK_CARD_MAX then
-        return "player deck must have fewer than " .. DECK_CARD_MAX .. " cards (has " .. total .. ")"
+        return nil, "player deck must have fewer than " .. DECK_CARD_MAX .. " cards (has " .. total .. ")"
     end
-    return nil
+    return preset, nil
 end
 
 check_enemy = function(e)

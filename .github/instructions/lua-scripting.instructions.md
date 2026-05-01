@@ -22,6 +22,30 @@ Use this package's contract files as the source of truth:
 - Do not use filesystem, network, modules, dynamic code loading, or unavailable standard libraries.
 - Do not use `dofile`, `loadfile`, `load`, `loadstring`, `require`, `module`, `getfenv`, `setfenv`, `collectgarbage`, or `string.dump`.
 
+## Library Scripts & Include Directives
+
+A script may import shared library scripts using `include` directives at the top of the file:
+
+```lua
+include math_utils
+include combat_helpers
+
+output.damage = math_utils.clamp(payload.attack - payload.defense, 0, 999)
+```
+
+- Each library is injected as a sandboxed global table; access its functions as `libname.func(args)`.
+- Library names must match `^[a-z][a-z0-9_]*$`. Maximum **7** active libraries per game.
+- **Inside a library script** (`is_library = true`): only define functions. No top-level executable statements, no `include` directives.
+
+```lua
+-- Example library body (is_library = true)
+function clamp(v, lo, hi)
+    if v < lo then return lo end
+    if v > hi then return hi end
+    return v
+end
+```
+
 ## Runtime Limits
 
 | Constraint | Value |
@@ -36,7 +60,8 @@ Use this package's contract files as the source of truth:
 ## Injected Globals
 
 - `payload`: request JSON converted to a Lua table.
-- `ctx`: server context with `player_id`, `game_id`, `studio_id`, `timestamp`, and optional enriched data.
+- `ctx`: server context with `player_id`, `game_id`, `studio_id`, `timestamp`, `script_version`, and optional enriched data.
+  - `ctx.script_version` (integer): version of the currently executing script. Use to guard version-specific logic or expose it in `output` for debugging.
 - `output`: result table collected by Go and returned to the caller.
 - `game`: server helper API table.
 - `print`: alias for `game.log`.

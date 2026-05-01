@@ -160,6 +160,7 @@ namespace SaiGame.Services
                 SerializedProperty scriptId = scriptFile.FindPropertyRelative("scriptId");
                 SerializedProperty description = scriptFile.FindPropertyRelative("description");
                 SerializedProperty isActive = scriptFile.FindPropertyRelative("isActive");
+                SerializedProperty isLibrary = scriptFile.FindPropertyRelative("isLibrary");
                 SerializedProperty hasLocalFile = scriptFile.FindPropertyRelative("hasLocalFile");
                 SerializedProperty hasBackendScript = scriptFile.FindPropertyRelative("hasBackendScript");
 
@@ -168,13 +169,52 @@ namespace SaiGame.Services
                 {
                     EditorGUILayout.PropertyField(scriptName, new GUIContent("Script Name"));
                     EditorGUILayout.PropertyField(fileName, new GUIContent("File Name"));
-                    EditorGUILayout.PropertyField(hasLocalFile, new GUIContent("Has Local File"));
-                    EditorGUILayout.PropertyField(hasBackendScript, new GUIContent("Has Backend Script"));
                 }
 
                 EditorGUILayout.PropertyField(scriptId, new GUIContent("Script Id"));
                 EditorGUILayout.PropertyField(description, new GUIContent("Description"));
-                EditorGUILayout.PropertyField(isActive, new GUIContent("Is Active"));
+
+                using (new EditorGUI.DisabledScope(true))
+                {
+                    float savedLabelWidth = EditorGUIUtility.labelWidth;
+                    EditorGUIUtility.labelWidth = 110f;
+                    EditorGUILayout.BeginHorizontal();
+                    EditorGUILayout.PropertyField(hasLocalFile, new GUIContent("Has Local File"));
+                    EditorGUILayout.PropertyField(hasBackendScript, new GUIContent("Has Backend Script"));
+                    EditorGUILayout.EndHorizontal();
+                    EditorGUIUtility.labelWidth = savedLabelWidth;
+                }
+
+                {
+                    float savedLabelWidth = EditorGUIUtility.labelWidth;
+                    EditorGUIUtility.labelWidth = 110f;
+                    EditorGUILayout.BeginHorizontal();
+
+                    using (new EditorGUI.DisabledScope(!hasBackendScript.boolValue))
+                    {
+                        EditorGUI.BeginChangeCheck();
+                        EditorGUILayout.PropertyField(isActive, new GUIContent("Is Active"));
+                        if (EditorGUI.EndChangeCheck())
+                        {
+                            this.serializedObject.ApplyModifiedProperties();
+                            this.UpdateScriptFlagsApi(index, this.GetScriptDisplayName(fileName, scriptName));
+                        }
+                    }
+
+                    using (new EditorGUI.DisabledScope(!hasBackendScript.boolValue))
+                    {
+                        EditorGUI.BeginChangeCheck();
+                        EditorGUILayout.PropertyField(isLibrary, new GUIContent("Is Library"));
+                        if (EditorGUI.EndChangeCheck())
+                        {
+                            this.serializedObject.ApplyModifiedProperties();
+                            this.UpdateScriptFlagsApi(index, this.GetScriptDisplayName(fileName, scriptName));
+                        }
+                    }
+
+                    EditorGUILayout.EndHorizontal();
+                    EditorGUIUtility.labelWidth = savedLabelWidth;
+                }
 
                 this.serializedObject.ApplyModifiedProperties();
 
@@ -261,6 +301,14 @@ namespace SaiGame.Services
                 index,
                 response => this.HandleScriptApiSuccess("Update Script", fileName),
                 error => this.HandleScriptApiError("Update Script", error));
+        }
+
+        private void UpdateScriptFlagsApi(int index, string fileName)
+        {
+            this.luaScriptManager.UpdateScriptFlagsAtIndex(
+                index,
+                response => this.HandleScriptApiSuccess("Update Script Flags", fileName),
+                error => this.HandleScriptApiError("Update Script Flags", error));
         }
 
         private void DeleteScriptApi(int index, string fileName)
@@ -584,6 +632,7 @@ namespace SaiGame.Services
                 "-- Example request body:",
                 "-- {",
                 "--   \"payload\": {",
+                "--     \"session_id\": \"battle-session-uuid\",",
                 "--     \"target\": \"alpha\",",
                 "--     \"hp\": -10",
                 "--   }",
@@ -599,17 +648,13 @@ namespace SaiGame.Services
                 "    local err = validate_payload()",
                 "    if err ~= nil then output.error = err ; return end",
                 "",
-                "    local session_id, session_err = game.battle_session_current_id()",
-                "    if session_err ~= nil then output.error = session_err ; return end",
-                "    if session_id == nil or session_id == \"\" then output.error = \"current battle session not found\" ; return end",
-                "",
-                "    local state, load_err = load_session(session_id)",
+                "    local state, load_err = load_session(payload.session_id)",
                 "    if load_err ~= nil then output.error = load_err ; return end",
                 "",
-                "    local result, apply_err = apply_hp_delta(session_id, state, payload.target, payload.hp)",
+                "    local result, apply_err = apply_hp_delta(state, payload.target, payload.hp)",
                 "    if apply_err ~= nil then output.error = apply_err ; return end",
                 "",
-                "    output.session_id = session_id",
+                "    output.session_id = payload.session_id",
                 "    output.target     = payload.target",
                 "    output.hp_before  = result.hp_before",
                 "    output.hp_after   = result.hp_after",
@@ -619,6 +664,9 @@ namespace SaiGame.Services
                 "-- ─── Functions ───────────────────────────────────────────────────────────────",
                 "",
                 "validate_payload = function()",
+                "    if payload.session_id == nil or payload.session_id == \"\" then",
+                "        return \"session_id is required\"",
+                "    end",
                 "    if payload.target ~= \"alpha\" and payload.target ~= \"omega\" then",
                 "        return \"target must be 'alpha' or 'omega'\"",
                 "    end",
@@ -635,7 +683,7 @@ namespace SaiGame.Services
                 "    return state, nil",
                 "end",
                 "",
-                "apply_hp_delta = function(session_id, state, target, hp_delta)",
+                "apply_hp_delta = function(state, target, hp_delta)",
                 "    local current_hp, new_hp",
                 "",
                 "    if target == \"alpha\" then",
@@ -652,7 +700,7 @@ namespace SaiGame.Services
                 "    state.last_debug_hp_delta = hp_delta",
                 "    state.updated_at          = ctx.timestamp",
                 "",
-                "    local err = game.battle_session_update(session_id, state)",
+                "    local err = game.battle_session_update(payload.session_id, state)",
                 "    if err ~= nil then return nil, err end",
                 "",
                 "    return { hp_before = current_hp, hp_after = new_hp }, nil",
@@ -674,13 +722,12 @@ namespace SaiGame.Services
                 "-- Example request body:",
                 "-- {",
                 "--   \"payload\": {",
-                "--     \"session_id\": \"battle-session-uuid\"  (optional, defaults to current active session)",
+                "--     \"session_id\": \"battle-session-uuid\"",
                 "--   }",
                 "-- }",
                 "",
-                "local validate_payload   -- forward declaration",
-                "local resolve_session_id -- forward declaration",
-                "local load_session       -- forward declaration",
+                "local validate_payload -- forward declaration",
+                "local load_session     -- forward declaration",
                 "local determine_winner -- forward declaration",
                 "local end_session      -- forward declaration",
                 "local open_drop_packs  -- forward declaration",
@@ -689,19 +736,15 @@ namespace SaiGame.Services
                 "    local err = validate_payload()",
                 "    if err ~= nil then output.error = err ; return end",
                 "",
-                "    local session_id, session_err = game.battle_session_current_id()",
-                "    if session_err ~= nil then output.error = session_err ; return end",
-                "    if session_id == nil or session_id == \"\" then output.error = \"current battle session not found\" ; return end",
-                "",
-                "    local state, load_err = load_session(session_id)",
+                "    local state, load_err = load_session()",
                 "    if load_err ~= nil then output.error = load_err ; return end",
                 "",
                 "    local winner, alpha_hp, omega_hp = determine_winner(state)",
                 "",
-                "    local end_err = end_session(session_id, state, winner)",
+                "    local end_err = end_session(state, winner)",
                 "    if end_err ~= nil then output.error = end_err ; return end",
                 "",
-                "    output.session_id = session_id",
+                "    output.session_id = payload.session_id",
                 "    output.status     = \"ended\"",
                 "    output.winner     = winner",
                 "    output.turn       = state.turn",
@@ -709,7 +752,7 @@ namespace SaiGame.Services
                 "    output.omega_hp   = omega_hp",
                 "",
                 "    if winner == \"alpha\" then",
-                "        local drops, drop_err = open_drop_packs(session_id, state)",
+                "        local drops, drop_err = open_drop_packs(state)",
                 "        if drop_err ~= nil then output.error = drop_err ; return end",
                 "        output.drops = drops",
                 "    end",
@@ -718,21 +761,14 @@ namespace SaiGame.Services
                 "-- ─── Functions ───────────────────────────────────────────────────────────────",
                 "",
                 "validate_payload = function()",
+                "    if payload.session_id == nil or payload.session_id == \"\" then",
+                "        return \"session_id is required\"",
+                "    end",
                 "    return nil",
                 "end",
                 "",
-                "resolve_session_id = function()",
-                "    if payload.session_id ~= nil and payload.session_id ~= \"\" then",
-                "        return payload.session_id, nil",
-                "    end",
-                "    local session_id, err = game.battle_session_current_id()",
-                "    if err ~= nil then return nil, err end",
-                "    if session_id == nil or session_id == \"\" then return nil, \"current battle session not found\" end",
-                "    return session_id, nil",
-                "end",
-                "",
-                "load_session = function(session_id)",
-                "    local state, err = game.battle_session_get(session_id)",
+                "load_session = function()",
+                "    local state, err = game.battle_session_get(payload.session_id)",
                 "    if err ~= nil then return nil, err end",
                 "    if state == nil then return nil, \"battle session not found\" end",
                 "    return state, nil",
@@ -750,24 +786,24 @@ namespace SaiGame.Services
                 "    return winner, alpha_hp, omega_hp",
                 "end",
                 "",
-                "end_session = function(session_id, state, winner)",
+                "end_session = function(state, winner)",
                 "    local end_data = {",
                 "        winner   = winner,",
                 "        reason   = \"completed\",",
                 "        turn     = state.turn or 1,",
                 "        ended_at = ctx.timestamp,",
                 "    }",
-                "    return game.battle_session_end(session_id, end_data)",
+                "    return game.battle_session_end(payload.session_id, end_data)",
                 "end",
                 "",
-                "open_drop_packs = function(session_id, state)",
+                "open_drop_packs = function(state)",
                 "    local enemy = state.metadata and state.metadata.omega",
                 "    if enemy == nil then return {}, nil end",
                 "",
                 "    local pack_ids = enemy.metadata and enemy.metadata.drop_pack_ids",
                 "    if pack_ids == nil or #pack_ids == 0 then return {}, nil end",
                 "",
-                "    local drops, err = game.open_entity_drop_packs(session_id, enemy.id, pack_ids)",
+                "    local drops, err = game.open_entity_drop_packs(payload.session_id, enemy.id, pack_ids)",
                 "    if err ~= nil then return nil, err end",
                 "    return drops or {}, nil",
                 "end",
