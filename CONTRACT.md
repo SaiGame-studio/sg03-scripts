@@ -38,10 +38,22 @@ game.log("damage=" .. output.damage)
 | Global | Purpose |
 | --- | --- |
 | `payload` | Request payload converted from JSON to Lua tables. |
-| `ctx` | Server execution context with `player_id`, `game_id`, `studio_id`, `timestamp`, plus optional enriched data. |
+| `ctx` | Server execution context with `player_id`, `game_id`, `studio_id`, `timestamp`, `script_version`, plus optional enriched data. |
 | `output` | Result table collected by Go and returned in the run response. |
 | `game` | Server-authoritative helper API table. |
 | `print` | Alias for `game.log`. |
+
+### `ctx` fields
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `ctx.player_id` | string (UUID) | Authenticated player running the script. |
+| `ctx.game_id` | string (UUID) | Game the script belongs to. |
+| `ctx.studio_id` | string (UUID) | Studio that owns the game. |
+| `ctx.timestamp` | number | Unix epoch seconds at execution start. |
+| `ctx.script_version` | number (integer) | Version number of the currently executing script definition. Use this to guard version-specific logic. |
+
+Additional keys (e.g. `ctx.packs`, `ctx.item_definitions`) may be present when the caller requested server-side data enrichment via `payload.context`.
 
 ## Error Handling
 
@@ -104,6 +116,50 @@ end
 | `game.battle_session_flee(session_id)` | `err` | Marks a battle session as fled. |
 | `game.open_entity_drop_packs(session_id, entity_def_id, pack_ids)` | `list, err` | Opens enemy drop packs. Max 7 pack IDs. |
 
+## Library Scripts & Include Directives
+
+A **library script** is a `ScriptDefinition` with `is_library = true`. Libraries may only define Lua functions — no top-level executable statements, no `include` directives.
+
+A **regular script** may declare include directives at the very top of its body:
+
+```lua
+include math_utils
+include combat_helpers
+
+local dmg = math_utils.clamp(payload.attack - payload.defense, 0, 999)
+output.damage = combat_helpers.apply_crit(dmg, payload.crit_rate)
+```
+
+### Rules
+
+| Rule | Detail |
+| --- | --- |
+| Syntax | `include <libname>` — one per line, at the top of the file |
+| Library name | Must match `^[a-z][a-z0-9_]*$` |
+| Access pattern | `libname.func(args)` — each library is exposed as a sandboxed global table |
+| Nesting | Libraries cannot include other libraries |
+| Cap | Maximum **7** active library scripts per game |
+| Scope | Libraries are game-scoped; a script may only include libraries in the same game |
+
+### Library authoring
+
+```lua
+-- math_utils (is_library = true)
+function clamp(v, lo, hi)
+    if v < lo then return lo end
+    if v > hi then return hi end
+    return v
+end
+
+function lerp(a, b, t)
+    return a + (b - a) * t
+end
+```
+
+Only function definitions are allowed at the top level. Non-function values (numbers, strings, tables) will be rejected at save time.
+
+---
+
 ## Agent Rejection Rules
 
 Reject or rewrite scripts that:
@@ -113,3 +169,5 @@ Reject or rewrite scripts that:
 - Depend on wall-clock randomness for security-critical outcomes without a server-provided seed.
 - Modify data outside `output` unless using an explicit documented side-effect helper.
 - Ignore `err` from `game.*` before reading returned data.
+- Use `include` inside a library script.
+- Define non-function top-level values in a library script.

@@ -16,7 +16,8 @@ Runtime contract:
 
 Injected globals:
 - payload: request JSON converted to a Lua table. Read from this.
-- ctx: server context. Contains player_id, game_id, studio_id, timestamp, and optional enriched data.
+- ctx: server context. Contains player_id, game_id, studio_id, timestamp, script_version, and optional enriched data.
+  - ctx.script_version (integer): version number of the currently executing script. Use to guard version-specific logic.
 - output: result table. Write all response data here.
 - game: server helper API table.
 - print(msg): alias for game.log(msg).
@@ -54,6 +55,12 @@ Available game API only:
 - game.battle_session_end(session_id [, end_data]) -> err
 - game.battle_session_flee(session_id) -> err
 - game.open_entity_drop_packs(session_id, entity_def_id, pack_ids) -> list, err
+
+Library scripts and include directives:
+- A script may declare `include <libname>` directives at the top of its body (one per line).
+- Each declared library is injected as a sandboxed global table: call its functions as `libname.func(args)`.
+- Library names must match ^[a-z][a-z0-9_]*$. Max 7 active libraries per game.
+- Library scripts (is_library = true) may only define Lua functions. Do not write top-level executable statements or `include` directives inside a library.
 
 Rules:
 - Return only one Lua script body unless explanation is explicitly requested.
