@@ -8,12 +8,27 @@
 ---@alias LuaMap table<string, any>
 ---@alias LuaList any[]
 
+---@class SSGameDetail
+---@field id UUID
+---@field studio_id UUID
+---@field name string
+---@field description string|nil
+---@field tags string[]
+---@field status "development"|"alpha"|"beta"|"released"|"archived"
+---@field is_active boolean
+---@field limits LuaMap   -- effective resource limits (system defaults + plugin boosts)
+---@field usage LuaMap    -- current usage counters per resource key
+---@field settings LuaMap -- studio-configurable game-level options (JSONB)
+---@field created_at number
+---@field updated_at number
+
 ---@class SSContext
 ---@field player_id UUID
 ---@field game_id UUID
 ---@field studio_id UUID
 ---@field timestamp number
 ---@field script_version number Integer version of the currently executing script definition.
+---@field game SSGameDetail Full detail of the current game (always present when server wires gameRepo).
 ---@field [string] any
 
 ---@class SSGameAPI

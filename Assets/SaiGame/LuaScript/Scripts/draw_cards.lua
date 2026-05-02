@@ -1,8 +1,12 @@
 -- draw_cards
--- Alpha draws 5 cards to open the battle.
---   Cards 1-3 : taken from alpha_preset_metadata (choose_card_1/2/3).
---   Cards 4-5 : drawn randomly from alpha_the_source.
--- All 5 cards are placed into alpha_hand and removed from alpha_the_source.
+-- Draws opening hands for both alpha and omega.
+--   Alpha (5 cards):
+--     Cards 1-3 : matched from alpha_preset_metadata by inventory_item_id in alpha_the_source.
+--     Cards 4-5 : drawn randomly from alpha_the_source.
+--   Omega (N cards):
+--     Each choose_card_X in omega_preset_metadata holds an item_code_name.
+--     One matching card is picked per slot from omega_the_source.
+-- Drawn cards are removed from their respective source pools.
 --
 -- Endpoint: POST /api/v1/games/{game_id}/scripts/draw_cards/run
 -- Example payload (session_id is optional; omit to use the current active session):
@@ -10,10 +14,12 @@
 --   "session_id": "battle-session-uuid"
 -- }
 
-local resolve_session_id -- forward declaration
-local load_session       -- forward declaration
-local find_and_remove    -- forward declaration
+local resolve_session_id    -- forward declaration
+local load_session          -- forward declaration
+local find_and_remove       -- forward declaration
+local find_and_remove_by_code -- forward declaration
 local alpha_draw            -- forward declaration
+local omega_draw            -- forward declaration
 
 local function main()
     local session_id, sid_err = resolve_session_id()
@@ -22,18 +28,24 @@ local function main()
     local state, load_err = load_session(session_id)
     if load_err ~= nil then output.error = load_err ; return end
 
-    local hand, draw_err = alpha_draw(state)
-    if draw_err ~= nil then output.error = draw_err ; return end
+    local alpha_hand, alpha_err = alpha_draw(state)
+    if alpha_err ~= nil then output.error = alpha_err ; return end
 
-    state.alpha_hand = hand
+    local omega_hand, omega_err = omega_draw(state)
+    if omega_err ~= nil then output.error = omega_err ; return end
+
+    state.alpha_hand = alpha_hand
+    state.omega_hand = omega_hand
     state.updated_at = ctx.timestamp
 
     local save_err = game.battle_session_update(session_id, state)
     if save_err ~= nil then output.error = save_err ; return end
 
-    output.session_id  = session_id
-    output.alpha_hand  = hand
-    output.cards_drawn = #hand
+    output.session_id        = session_id
+    output.alpha_hand        = alpha_hand
+    output.alpha_cards_drawn = #alpha_hand
+    output.omega_hand        = omega_hand
+    output.omega_cards_drawn = #omega_hand
 end
 
 -- ─── Functions ───────────────────────────────────────────────────────────────
@@ -61,6 +73,18 @@ end
 find_and_remove = function(list, iid)
     for i, item in ipairs(list) do
         if item.inventory_item_id == iid then
+            table.remove(list, i)
+            return item
+        end
+    end
+    return nil
+end
+
+-- Finds the first item in list where item.item_code_name == code,
+-- removes it from the list, and returns the item. Returns nil if not found.
+find_and_remove_by_code = function(list, code)
+    for i, item in ipairs(list) do
+        if item.item_code_name == code then
             table.remove(list, i)
             return item
         end
@@ -122,6 +146,49 @@ alpha_draw = function(state)
     end
 
     -- state.alpha_the_source has already been mutated in-place above
+    return hand, nil
+end
+
+omega_draw = function(state)
+    -- omega preset is stored at state.metadata.omega.metadata
+    if state.metadata == nil or state.metadata.omega == nil then
+        return nil, "metadata.omega not found in session state"
+    end
+    local preset = state.metadata.omega.metadata
+    if preset == nil then
+        return nil, "metadata.omega.metadata not found in session state"
+    end
+
+    local source = state.omega_the_source
+    if source == nil then
+        return nil, "omega_the_source not found in session state"
+    end
+
+    -- Collect all choose_card_X code names in order; skip missing slots
+    local slot_keys  = { "choose_card_1", "choose_card_2", "choose_card_3" }
+    local code_names = {}
+    for _, key in ipairs(slot_keys) do
+        local code = preset[key]
+        if code ~= nil and code ~= "" then
+            table.insert(code_names, { key = key, code = code })
+        end
+    end
+
+    if #code_names == 0 then
+        return nil, "omega_preset_metadata has no choose_card slots"
+    end
+
+    -- Pick one card per slot from omega_the_source by item_code_name
+    local hand = {}
+    for _, slot in ipairs(code_names) do
+        local card = find_and_remove_by_code(source, slot.code)
+        if card == nil then
+            return nil, "omega preset " .. slot.key .. " (" .. slot.code .. ") not found in omega_the_source"
+        end
+        table.insert(hand, card)
+    end
+
+    -- state.omega_the_source has already been mutated in-place above
     return hand, nil
 end
 
