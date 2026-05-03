@@ -58,12 +58,13 @@ load_session = function(session_id)
     return state, nil
 end
 
--- Appends unique item_definition_code_name values from slot_list into codes.
+-- Appends unique code values from slot_list into codes.
+-- key specifies which field on each slot holds the code name.
 -- seen tracks which codes have already been added to avoid duplicates.
-collect_codes_from = function(seen, codes, slot_list)
+collect_codes_from = function(seen, codes, slot_list, key)
     if slot_list == nil then return end
     for _, slot in ipairs(slot_list) do
-        local code = slot.item_definition_code_name
+        local code = slot[key]
         if code ~= nil and code ~= "" and not seen[code] then
             seen[code]        = true
             codes[#codes + 1] = code
@@ -74,11 +75,16 @@ end
 collect_codes = function(state)
     local seen  = {}
     local codes = {}
-    collect_codes_from(seen, codes, state.alpha_the_source)
-    collect_codes_from(seen, codes, state.alpha_the_void)
-    collect_codes_from(seen, codes, state.alpha_back_line)
-    collect_codes_from(seen, codes, state.alpha_front_line)
-    collect_codes_from(seen, codes, state.alpha_hand)
+    collect_codes_from(seen, codes, state.alpha_the_source, "item_definition_code_name")
+    collect_codes_from(seen, codes, state.alpha_the_void,   "item_definition_code_name")
+    collect_codes_from(seen, codes, state.alpha_back_line,  "item_definition_code_name")
+    collect_codes_from(seen, codes, state.alpha_front_line, "item_definition_code_name")
+    collect_codes_from(seen, codes, state.alpha_hand,       "item_definition_code_name")
+    collect_codes_from(seen, codes, state.omega_the_source, "item_code_name")
+    collect_codes_from(seen, codes, state.omega_the_void,   "item_code_name")
+    collect_codes_from(seen, codes, state.omega_back_line,  "item_code_name")
+    collect_codes_from(seen, codes, state.omega_front_line, "item_code_name")
+    collect_codes_from(seen, codes, state.omega_hand,       "item_code_name")
     return codes
 end
 
