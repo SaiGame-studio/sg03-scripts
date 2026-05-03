@@ -27,10 +27,10 @@ local function main()
         output.error = "battle session not found"; return
     end
 
-    local is_development = ctx.game ~= nil and ctx.game.status == "development"
+    local is_development  = ctx.game ~= nil and ctx.game.status == "development"
 
-    output.is_development         = is_development
-    output.game_status            = ctx.game ~= nil and ctx.game.status or nil
+    output.is_development = is_development
+    output.game_status    = ctx.game ~= nil and ctx.game.status or nil
 
     if is_development then
         output.omega_hand = state.omega_hand
@@ -38,6 +38,7 @@ local function main()
 
     output.session_id             = session_id
     output.alpha_hp               = state.alpha_hp
+    output.alpha_the_source       = state.alpha_the_source
     output.alpha_the_source_count = state.alpha_the_source ~= nil and #state.alpha_the_source or 0
     output.alpha_the_void_count   = state.alpha_the_void ~= nil and #state.alpha_the_void or 0
     output.alpha_hand             = state.alpha_hand
