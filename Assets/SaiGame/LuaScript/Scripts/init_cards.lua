@@ -44,12 +44,17 @@ local function main()
     local save_err = game.battle_session_update(session_id, state)
     if save_err ~= nil then output.error = save_err ; return end
 
+    local is_development = ctx.game ~= nil and ctx.game.status == "development"
+    if is_development then
+        output.omega_hand = omega_hand
+    end
+    
     output.session_id             = session_id
     output.alpha_hand             = alpha_hand
     output.alpha_cards_drawn      = #alpha_hand
     output.alpha_the_source_count = state.alpha_the_source ~= nil and #state.alpha_the_source or 0
-    output.omega_hand             = omega_hand   --disable on production
-    output.omega_cards_drawn      = #omega_hand  --disable on production
+
+    output.omega_cards_drawn      = #omega_hand
     output.omega_the_source_count = state.omega_the_source ~= nil and #state.omega_the_source or 0
 end
 
