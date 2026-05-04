@@ -62,6 +62,18 @@ function SSGameAPI.get_item_def_by_id(id) end
 ---@return LuaError err
 function SSGameAPI.get_item_def_by_code(code) end
 
+---Fetch multiple item definitions by UUID array in a single DB query.
+---@param ids UUID[]
+---@return LuaList|nil item_defs
+---@return LuaError err
+function SSGameAPI.get_item_defs_by_ids(ids) end
+
+---Fetch multiple item definitions by code array in a single DB query.
+---@param codes string[]
+---@return LuaList|nil item_defs
+---@return LuaError err
+function SSGameAPI.get_item_defs_by_codes(codes) end
+
 ---Fetch a player inventory item instance by UUID.
 ---@param id UUID
 ---@return LuaMap|nil item

@@ -88,6 +88,8 @@ end
 | `game.deduct_item(item_def_id, amount)` | `err` | Deducts an item definition from the current player. `amount` must be positive. |
 | `game.get_item_def_by_id(id)` | `table, err` | Fetches an item definition by UUID. |
 | `game.get_item_def_by_code(code)` | `table, err` | Fetches an item definition by code. |
+| `game.get_item_defs_by_ids(ids)` | `list, err` | Fetches multiple item definitions by UUID array — single DB query. |
+| `game.get_item_defs_by_codes(codes)` | `list, err` | Fetches multiple item definitions by code array — single DB query. |
 | `game.get_item_instance_by_id(id)` | `table, err` | Fetches a player inventory item instance by UUID. |
 | `game.update_item_private_properties(item_id, version, props)` | `err` | Merges private properties. The `level` key is reserved. |
 | `game.get_container_def_by_id(id)` | `table, err` | Fetches an item container definition by UUID. |
