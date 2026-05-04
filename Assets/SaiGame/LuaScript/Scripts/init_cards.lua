@@ -38,8 +38,10 @@ local function main()
 
     state.alpha_hand = alpha_hand
     state.omega_hand = omega_hand
-    state.turn       = (state.turn or 0) + 1
+    state.action       = (state.action or 0) + 1
     state.updated_at = ctx.timestamp
+    if state.metadata == nil then state.metadata = {} end
+    state.metadata.next_move = "card_deploy"
 
     local save_err = game.battle_session_update(session_id, state)
     if save_err ~= nil then output.error = save_err ; return end
@@ -56,6 +58,7 @@ local function main()
 
     output.omega_cards_drawn      = #omega_hand
     output.omega_the_source_count = state.omega_the_source ~= nil and #state.omega_the_source or 0
+    output.next_move              = state.metadata.next_move
 end
 
 -- ─── Functions ───────────────────────────────────────────────────────────────

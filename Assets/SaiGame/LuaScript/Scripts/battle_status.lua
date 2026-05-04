@@ -53,6 +53,7 @@ local function main()
     output.turn                   = state.turn
     output.action                 = state.action
     output.status                 = state.status
+    output.next_move              = state.metadata ~= nil and state.metadata.next_move or nil
 end
 
 main()

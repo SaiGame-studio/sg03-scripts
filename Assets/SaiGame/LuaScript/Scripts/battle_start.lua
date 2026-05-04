@@ -119,6 +119,7 @@ build_state = function(enemy, selected_mode, player_the_source, enemy_the_source
             omega              = enemy,
             battle_mode        = selected_mode,
             started_at         = ctx.timestamp,
+            next_move          = "init_cards",
         },
         alpha_preset_metadata  = preset ~= nil and preset.metadata or nil,
         alpha_hp           = hp,
@@ -133,8 +134,8 @@ build_state = function(enemy, selected_mode, player_the_source, enemy_the_source
         omega_hand         = {},  -- max 7 slots
         omega_front_line   = {},  -- max 5 slots
         omega_back_line    = {},  -- max 5 slots
-        turn               = 1,  -- increments when alpha or omega runs out of actions
-        action             = 1,  -- each action is one card played
+        turn               = 0,  -- increments when alpha or omega runs out of actions
+        action             = 0,  -- each action is one card played
         status             = "active",
     }
 end
