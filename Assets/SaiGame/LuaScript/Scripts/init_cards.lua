@@ -1,4 +1,4 @@
-include battle_common_lib
+require "battle_common_lib"
 
 -- init_cards
 -- Draws opening hands for both alpha and omega.

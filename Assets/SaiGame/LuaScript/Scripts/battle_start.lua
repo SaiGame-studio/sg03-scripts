@@ -12,7 +12,7 @@
 --   }
 -- }
 
-include battle_common_lib
+require "battle_common_lib"
 
 -- Deck size limits — shared with player deck validation
 local DECK_CARD_MIN = 25

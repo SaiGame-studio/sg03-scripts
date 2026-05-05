@@ -1,4 +1,4 @@
-include battle_common_lib
+require "battle_common_lib"
 
 -- card_deploy
 -- Finalizes alpha's opening hand by placing cards into front-line and back-line.

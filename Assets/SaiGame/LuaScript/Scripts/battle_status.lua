@@ -9,6 +9,6 @@
 -- }
 -- No payload fields required. Returns the full state of the player's current battle session.
 
-include battle_common_lib
+require "battle_common_lib"
 
 battle_common_lib.battle_status()
