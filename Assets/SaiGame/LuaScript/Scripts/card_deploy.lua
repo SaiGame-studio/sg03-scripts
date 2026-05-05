@@ -7,9 +7,15 @@
 -- Example payload (session_id is optional; omit to use the current active session):
 -- {
 --   "session_id": "battle-session-uuid",
+--   "hand":       ["inventory-item-id-6", "inventory-item-id-7"],
 --   "front_line": ["inventory-item-id-1", "inventory-item-id-2"],
 --   "back_line":  ["inventory-item-id-3", "inventory-item-id-4", "inventory-item-id-5"]
 -- }
+-- hand is required (the IDs the client still holds after deployment).
+-- Verified by comparing exact inventory_item_id sets: union of payload
+-- (hand + front_line + back_line) must match union of state
+-- (alpha_hand + alpha_front_line + alpha_back_line) — no item may appear
+-- or disappear.
 
 local resolve_session_id  -- forward declaration
 local load_session        -- forward declaration
@@ -31,19 +37,56 @@ local function main()
         return
     end
 
+    -- Cross-verify by inventory_item_id across all 3 groups on each side.
+    -- Payload set : hand + front_line + back_line
+    -- State set   : alpha_hand + alpha_front_line + alpha_back_line (card objects)
+    local payload_ids = {}
+    for _, iid in ipairs(payload.hand) do
+        if iid ~= "" then payload_ids[iid] = true end
+    end
+    for _, iid in ipairs(payload.front_line or {}) do
+        if iid ~= "" then payload_ids[iid] = true end
+    end
+    for _, iid in ipairs(payload.back_line  or {}) do
+        if iid ~= "" then payload_ids[iid] = true end
+    end
+
+    local state_ids = {}
+    for _, card in ipairs(state.alpha_hand) do state_ids[card.inventory_item_id] = true end
+    for _, card in ipairs(state.alpha_front_line or {}) do state_ids[card.inventory_item_id] = true end
+    for _, card in ipairs(state.alpha_back_line  or {}) do state_ids[card.inventory_item_id] = true end
+
+    for iid, _ in pairs(payload_ids) do
+        if not state_ids[iid] then
+            output.error = "payload item (" .. iid .. ") does not exist in battle state"
+            return
+        end
+    end
+    for iid, _ in pairs(state_ids) do
+        if not payload_ids[iid] then
+            output.error = "state item (" .. iid .. ") is missing from payload"
+            return
+        end
+    end
+
     local front_line, back_line, build_err = build_lines(state.alpha_hand)
     if build_err ~= nil then output.error = build_err ; return end
 
-    -- Remove placed cards from alpha_hand
-    local placed = {}
-    for _, iid in ipairs(payload.front_line or {}) do placed[iid] = true end
-    for _, iid in ipairs(payload.back_line  or {}) do placed[iid] = true end
+    -- Build new alpha_hand from payload.hand preserving slot positions.
+    -- Empty-string slots ("") → nil in state to keep the hand layout in sync.
+    local hand_index = {}
+    for _, card in ipairs(state.alpha_hand) do
+        hand_index[card.inventory_item_id] = card
+    end
 
     local remaining_hand = {}
-    for _, card in ipairs(state.alpha_hand) do
-        if not placed[card.inventory_item_id] then
-            table.insert(remaining_hand, card)
+    local remaining_count = 0
+    for i, iid in ipairs(payload.hand) do
+        if iid ~= "" then
+            remaining_hand[i] = hand_index[iid]
+            remaining_count = remaining_count + 1
         end
+        -- iid == "" → remaining_hand[i] stays nil (empty slot in state)
     end
 
     state.alpha_hand       = remaining_hand
@@ -60,7 +103,7 @@ local function main()
     output.session_id           = session_id
     output.alpha_front_line     = front_line
     output.alpha_back_line      = back_line
-    output.alpha_hand_remaining = #remaining_hand
+    output.alpha_hand_remaining = remaining_count
     output.next_move            = state.metadata.next_move
 end
 
@@ -84,25 +127,52 @@ load_session = function(session_id)
 end
 
 validate_payload = function()
+    if payload.hand == nil then
+        return "hand is required"
+    end
+    if type(payload.hand) ~= "table" then
+        return "hand must be an array of inventory_item_ids"
+    end
     if payload.front_line ~= nil and type(payload.front_line) ~= "table" then
         return "front_line must be an array of inventory_item_ids"
     end
     if payload.back_line ~= nil and type(payload.back_line) ~= "table" then
         return "back_line must be an array of inventory_item_ids"
     end
-    -- Reject duplicates within and across lines
+    -- Validate each item: skip empty-string slots (empty slot), reject non-string values and duplicates
     local seen = {}
-    for _, iid in ipairs(payload.front_line or {}) do
-        if seen[iid] then
-            return "duplicate inventory_item_id in front_line: " .. iid
+    for i, iid in ipairs(payload.hand) do
+        if type(iid) ~= "string" then
+            return "hand[" .. i .. "] must be a string"
         end
-        seen[iid] = "front_line"
+        if iid ~= "" then
+            if seen[iid] then
+                return "duplicate inventory_item_id in hand: " .. iid
+            end
+            seen[iid] = "hand"
+        end
     end
-    for _, iid in ipairs(payload.back_line or {}) do
-        if seen[iid] then
-            return "inventory_item_id " .. iid .. " appears in both lines"
+    for i, iid in ipairs(payload.front_line or {}) do
+        if type(iid) ~= "string" then
+            return "front_line[" .. i .. "] must be a string"
         end
-        seen[iid] = "back_line"
+        if iid ~= "" then
+            if seen[iid] then
+                return "inventory_item_id " .. iid .. " appears in both hand and front_line"
+            end
+            seen[iid] = "front_line"
+        end
+    end
+    for i, iid in ipairs(payload.back_line or {}) do
+        if type(iid) ~= "string" then
+            return "back_line[" .. i .. "] must be a string"
+        end
+        if iid ~= "" then
+            if seen[iid] then
+                return "inventory_item_id " .. iid .. " appears in " .. seen[iid] .. " and back_line"
+            end
+            seen[iid] = "back_line"
+        end
     end
     return nil
 end
@@ -117,21 +187,25 @@ build_lines = function(alpha_hand)
     end
 
     local front_line = {}
-    for _, iid in ipairs(payload.front_line or {}) do
-        local card = hand_index[iid]
-        if card == nil then
-            return nil, nil, "front_line card (" .. iid .. ") not found in alpha_hand"
+    for i, iid in ipairs(payload.front_line or {}) do
+        if iid ~= "" then
+            local card = hand_index[iid]
+            if card == nil then
+                return nil, nil, "front_line[" .. i .. "] card (" .. iid .. ") not found in alpha_hand"
+            end
+            table.insert(front_line, card)
         end
-        table.insert(front_line, card)
     end
 
     local back_line = {}
-    for _, iid in ipairs(payload.back_line or {}) do
-        local card = hand_index[iid]
-        if card == nil then
-            return nil, nil, "back_line card (" .. iid .. ") not found in alpha_hand"
+    for i, iid in ipairs(payload.back_line or {}) do
+        if iid ~= "" then
+            local card = hand_index[iid]
+            if card == nil then
+                return nil, nil, "back_line[" .. i .. "] card (" .. iid .. ") not found in alpha_hand"
+            end
+            table.insert(back_line, card)
         end
-        table.insert(back_line, card)
     end
 
     return front_line, back_line, nil

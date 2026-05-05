@@ -143,6 +143,10 @@ end
 load_player_the_source = function(preset_instance_id)
     local slots, err = game.get_preset_slots(preset_instance_id)
     if err ~= nil then return nil, err end
+    for _, slot in ipairs(slots) do
+        slot.container_id = nil
+        slot.created_at   = nil
+    end
     return slots, nil
 end
 
