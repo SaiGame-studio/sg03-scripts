@@ -1,4 +1,4 @@
--- battle_common_lib
+-- lib_battle_common
 -- Shared helpers used across battle scripts.
 -- is_library = true
 

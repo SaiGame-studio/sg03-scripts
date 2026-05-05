@@ -1,4 +1,4 @@
-require "battle_common_lib"
+require "lib_battle_common"
 
 -- card_deploy
 -- Finalizes alpha's opening hand by placing cards into front-line and back-line.
@@ -128,7 +128,7 @@ local function main()
     local save_err = game.battle_session_update(session_id, state)
     if save_err ~= nil then output.error = save_err ; return end
 
-    battle_common_lib.battle_status()
+    lib_battle_common.battle_status()
 end
 
 -- ─── Functions ───────────────────────────────────────────────────────────────

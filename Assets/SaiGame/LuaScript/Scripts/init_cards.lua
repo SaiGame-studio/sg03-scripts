@@ -1,4 +1,4 @@
-require "battle_common_lib"
+require "lib_battle_common"
 
 -- init_cards
 -- Draws opening hands for both alpha and omega.
@@ -48,7 +48,7 @@ local function main()
     local save_err = game.battle_session_update(session_id, state)
     if save_err ~= nil then output.error = save_err ; return end
 
-    battle_common_lib.battle_status()
+    lib_battle_common.battle_status()
 end
 
 -- ─── Functions ───────────────────────────────────────────────────────────────
