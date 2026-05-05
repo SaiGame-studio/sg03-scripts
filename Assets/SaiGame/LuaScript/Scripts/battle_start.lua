@@ -12,6 +12,8 @@
 --   }
 -- }
 
+include battle_common_lib
+
 -- Deck size limits — shared with player deck validation
 local DECK_CARD_MIN = 25
 local DECK_CARD_MAX = 52
@@ -65,11 +67,7 @@ local function main()
     local session_id, create_err = game.battle_session_create(state)
     if create_err ~= nil then output.error = create_err ; return end
 
-    output.session_id        = session_id
-    output.metadata          = state.metadata
-    output.turn              = state.turn
-    output.action            = state.action
-    output.status            = state.status
+    battle_common_lib.battle_status()
 end
 
 -- ─── Functions ───────────────────────────────────────────────────────────────

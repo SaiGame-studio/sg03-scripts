@@ -1,5 +1,3 @@
-include battle_common_lib
-
 -- battle_status
 -- Endpoint: POST /api/v1/games/{game_id}/scripts/battle_status/run
 -- Headers:
@@ -10,5 +8,7 @@ include battle_common_lib
 --   "payload": {}
 -- }
 -- No payload fields required. Returns the full state of the player's current battle session.
+
+include battle_common_lib
 
 battle_common_lib.battle_status()

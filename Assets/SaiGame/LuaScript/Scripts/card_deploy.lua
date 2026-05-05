@@ -1,3 +1,5 @@
+include battle_common_lib
+
 -- card_deploy
 -- Finalizes alpha's opening hand by placing cards into front-line and back-line.
 -- Each card ID in the payload must actually exist in state.alpha_hand; duplicates
@@ -122,11 +124,7 @@ local function main()
     local save_err = game.battle_session_update(session_id, state)
     if save_err ~= nil then output.error = save_err ; return end
 
-    output.session_id           = session_id
-    output.alpha_front_line     = front_line
-    output.alpha_back_line      = back_line
-    output.alpha_hand_remaining = remaining_count
-    output.next_move            = state.metadata.next_move
+    battle_common_lib.battle_status()
 end
 
 -- ─── Functions ───────────────────────────────────────────────────────────────
@@ -228,9 +226,10 @@ build_lines = function(alpha_hand)
                 return nil, nil, "front_line[" .. i .. "] card (" .. iid .. ") not found in alpha_hand"
             end
             local face_up = slot.face_up == true
-            card.face_up  = face_up
-            card.expose   = face_up
-            front_line[i] = card
+            card.face_up    = face_up
+            card.expose     = face_up
+            card.card_action = "in_front_line"
+            front_line[i]   = card
         else
             front_line[i] = {}
         end
@@ -246,9 +245,10 @@ build_lines = function(alpha_hand)
                 return nil, nil, "back_line[" .. i .. "] card (" .. iid .. ") not found in alpha_hand"
             end
             local face_up = slot.face_up == true
-            card.face_up  = face_up
-            card.expose   = face_up
-            back_line[i]  = card
+            card.face_up    = face_up
+            card.expose     = face_up
+            card.card_action = "in_back_line"
+            back_line[i]    = card
         else
             back_line[i] = {}
         end

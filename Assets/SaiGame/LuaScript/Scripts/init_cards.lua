@@ -1,3 +1,5 @@
+include battle_common_lib
+
 -- init_cards
 -- Draws opening hands for both alpha and omega.
 --   Alpha (5 cards):
@@ -46,28 +48,7 @@ local function main()
     local save_err = game.battle_session_update(session_id, state)
     if save_err ~= nil then output.error = save_err ; return end
 
-    local is_development = ctx.game ~= nil and ctx.game.status == "development"
-    if is_development then
-        output.omega_hand = omega_hand
-    end
-    
-    output.session_id             = session_id
-    output.alpha_hand             = alpha_hand
-    local function count_cards(list)
-        local n = 0
-        for _, slot in ipairs(list) do
-            if slot.item_definition_code_name ~= nil and slot.item_definition_code_name ~= "" then
-                n = n + 1
-            end
-        end
-        return n
-    end
-    output.alpha_cards_drawn      = count_cards(alpha_hand)
-    output.alpha_the_source_count = state.alpha_the_source ~= nil and #state.alpha_the_source or 0
-
-    output.omega_cards_drawn      = count_cards(omega_hand)
-    output.omega_the_source_count = state.omega_the_source ~= nil and #state.omega_the_source or 0
-    output.next_move              = state.metadata.next_move
+    battle_common_lib.battle_status()
 end
 
 -- ─── Functions ───────────────────────────────────────────────────────────────
@@ -141,6 +122,7 @@ alpha_draw = function(state)
         if card == nil then
             return nil, "preset card " .. slot_names[i] .. " (" .. uid .. ") not found in alpha_the_source"
         end
+        card.card_action = "draw_from_source_to_hand"
         table.insert(preset_cards, card)
     end
 
@@ -155,6 +137,7 @@ alpha_draw = function(state)
     local random_cards = {}
     for _ = 1, random_count do
         local idx = math.random(1, #source)
+        source[idx].card_action = "draw_from_source_to_hand"
         table.insert(random_cards, source[idx])
         table.remove(source, idx)
     end
@@ -171,6 +154,13 @@ alpha_draw = function(state)
     -- Pad to init_card_max slots with empty slot markers
     for i = #hand + 1, init_card_max do
         hand[i] = {}
+    end
+
+    -- Update slot_index to match position in hand (0-based)
+    for i, card in ipairs(hand) do
+        if card.item_definition_code_name ~= nil and card.item_definition_code_name ~= "" then
+            card.slot_index = i - 1
+        end
     end
 
     -- state.alpha_the_source has already been mutated in-place above
@@ -213,6 +203,7 @@ omega_draw = function(state)
         if card == nil then
             return nil, "omega preset " .. slot.key .. " (" .. slot.code .. ") not found in omega_the_source"
         end
+        card.card_action = "draw_from_source_to_hand"
         table.insert(hand, card)
     end
 
@@ -222,6 +213,7 @@ omega_draw = function(state)
     for _ = 1, random_count do
         if #source == 0 then break end
         local idx = math.random(1, #source)
+        source[idx].card_action = "draw_from_source_to_hand"
         table.insert(hand, source[idx])
         table.remove(source, idx)
     end
@@ -229,6 +221,13 @@ omega_draw = function(state)
     -- Pad to init_card_max slots with empty slot markers
     for i = #hand + 1, init_card_max do
         hand[i] = {}
+    end
+
+    -- Update slot_index to match position in hand (0-based)
+    for i, card in ipairs(hand) do
+        if card.item_definition_code_name ~= nil and card.item_definition_code_name ~= "" then
+            card.slot_index = i - 1
+        end
     end
 
     -- state.omega_the_source has already been mutated in-place above
