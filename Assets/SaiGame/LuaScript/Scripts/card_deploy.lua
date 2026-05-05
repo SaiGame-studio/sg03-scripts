@@ -8,9 +8,11 @@
 -- {
 --   "session_id": "battle-session-uuid",
 --   "hand":       ["inventory-item-id-6", "inventory-item-id-7"],
---   "front_line": ["inventory-item-id-1", "inventory-item-id-2"],
---   "back_line":  ["inventory-item-id-3", "inventory-item-id-4", "inventory-item-id-5"]
+--   "front_line": [{"inventory_item_id": "inventory-item-id-1", "face_up": false}, ...],
+--   "back_line":  [{"inventory_item_id": "inventory-item-id-3", "face_up": true},  ...]
 -- }
+-- face_up=true  → card.face_up=true,  card.expose=true
+-- face_up=false → card.face_up=false, card.expose=false
 -- hand is required (the IDs the client still holds after deployment).
 -- Verified by comparing exact inventory_item_id sets: union of payload
 -- (hand + front_line + back_line) must match union of state
@@ -46,11 +48,13 @@ local function main()
     for _, iid in ipairs(payload.hand) do
         if iid ~= "" then payload_ids[iid] = true end
     end
-    for _, iid in ipairs(payload.front_line or {}) do
-        if iid ~= "" then payload_ids[iid] = true end
+    for _, slot in ipairs(payload.front_line or {}) do
+        local iid = slot.inventory_item_id
+        if iid ~= nil and iid ~= "" then payload_ids[iid] = true end
     end
-    for _, iid in ipairs(payload.back_line  or {}) do
-        if iid ~= "" then payload_ids[iid] = true end
+    for _, slot in ipairs(payload.back_line  or {}) do
+        local iid = slot.inventory_item_id
+        if iid ~= nil and iid ~= "" then payload_ids[iid] = true end
     end
 
     local state_ids = {}
@@ -170,9 +174,13 @@ validate_payload = function()
             seen[iid] = "hand"
         end
     end
-    for i, iid in ipairs(payload.front_line or {}) do
+    for i, slot in ipairs(payload.front_line or {}) do
+        if type(slot) ~= "table" then
+            return "front_line[" .. i .. "] must be an object"
+        end
+        local iid = slot.inventory_item_id
         if type(iid) ~= "string" then
-            return "front_line[" .. i .. "] must be a string"
+            return "front_line[" .. i .. "].inventory_item_id must be a string"
         end
         if iid ~= "" then
             if seen[iid] then
@@ -181,9 +189,13 @@ validate_payload = function()
             seen[iid] = "front_line"
         end
     end
-    for i, iid in ipairs(payload.back_line or {}) do
+    for i, slot in ipairs(payload.back_line or {}) do
+        if type(slot) ~= "table" then
+            return "back_line[" .. i .. "] must be an object"
+        end
+        local iid = slot.inventory_item_id
         if type(iid) ~= "string" then
-            return "back_line[" .. i .. "] must be a string"
+            return "back_line[" .. i .. "].inventory_item_id must be a string"
         end
         if iid ~= "" then
             if seen[iid] then
@@ -208,12 +220,16 @@ build_lines = function(alpha_hand)
 
     local front_line = {}
     for i = 1, SLOT_COUNT do
-        local iid = (payload.front_line or {})[i]
+        local slot = (payload.front_line or {})[i]
+        local iid  = slot ~= nil and slot.inventory_item_id or nil
         if iid ~= nil and iid ~= "" then
             local card = hand_index[iid]
             if card == nil then
                 return nil, nil, "front_line[" .. i .. "] card (" .. iid .. ") not found in alpha_hand"
             end
+            local face_up = slot.face_up == true
+            card.face_up  = face_up
+            card.expose   = face_up
             front_line[i] = card
         else
             front_line[i] = {}
@@ -222,13 +238,17 @@ build_lines = function(alpha_hand)
 
     local back_line = {}
     for i = 1, SLOT_COUNT do
-        local iid = (payload.back_line or {})[i]
+        local slot = (payload.back_line or {})[i]
+        local iid  = slot ~= nil and slot.inventory_item_id or nil
         if iid ~= nil and iid ~= "" then
             local card = hand_index[iid]
             if card == nil then
                 return nil, nil, "back_line[" .. i .. "] card (" .. iid .. ") not found in alpha_hand"
             end
-            back_line[i] = card
+            local face_up = slot.face_up == true
+            card.face_up  = face_up
+            card.expose   = face_up
+            back_line[i]  = card
         else
             back_line[i] = {}
         end

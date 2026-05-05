@@ -53,10 +53,19 @@ local function main()
     
     output.session_id             = session_id
     output.alpha_hand             = alpha_hand
-    output.alpha_cards_drawn      = #alpha_hand
+    local function count_cards(list)
+        local n = 0
+        for _, slot in ipairs(list) do
+            if slot.item_definition_code_name ~= nil and slot.item_definition_code_name ~= "" then
+                n = n + 1
+            end
+        end
+        return n
+    end
+    output.alpha_cards_drawn      = count_cards(alpha_hand)
     output.alpha_the_source_count = state.alpha_the_source ~= nil and #state.alpha_the_source or 0
 
-    output.omega_cards_drawn      = #omega_hand
+    output.omega_cards_drawn      = count_cards(omega_hand)
     output.omega_the_source_count = state.omega_the_source ~= nil and #state.omega_the_source or 0
     output.next_move              = state.metadata.next_move
 end

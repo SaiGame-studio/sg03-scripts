@@ -9,6 +9,17 @@
 -- }
 -- No payload fields required. Returns the full state of the player's current battle session.
 
+local function count_cards(list)
+    if list == nil then return 0 end
+    local n = 0
+    for _, slot in ipairs(list) do
+        if slot.item_definition_code_name ~= nil and slot.item_definition_code_name ~= "" then
+            n = n + 1
+        end
+    end
+    return n
+end
+
 local function main()
     local session_id, id_err = game.battle_session_current_id()
     if id_err ~= nil then
@@ -47,7 +58,7 @@ local function main()
     output.omega_hp               = state.omega_hp
     output.omega_the_source_count = state.omega_the_source ~= nil and #state.omega_the_source or 0
     output.omega_the_void_count   = state.omega_the_void ~= nil and #state.omega_the_void or 0
-    output.omega_hand_count       = state.omega_hand ~= nil and #state.omega_hand or 0
+    output.omega_hand_count       = count_cards(state.omega_hand)
     output.omega_front_line       = state.omega_front_line
     output.omega_back_line        = state.omega_back_line
     output.turn                   = state.turn
