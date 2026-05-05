@@ -1,4 +1,5 @@
 require "lib_battle_common"
+require "lib_battle_ai"
 
 -- card_deploy
 -- Finalizes alpha's opening hand by placing cards into front-line and back-line.
@@ -120,6 +121,14 @@ local function main()
     state.alpha_hand       = remaining_hand
     state.alpha_front_line = front_line
     state.alpha_back_line  = back_line
+
+    -- Omega AI deploy cards
+    local o_front, o_back, o_hand, ai_err = lib_battle_ai.deploy_omega_cards(state, "normal")
+    if ai_err ~= nil then output.error = ai_err ; return end
+    state.omega_front_line = o_front
+    state.omega_back_line  = o_back
+    state.omega_hand       = o_hand
+
     state.action           = (state.action or 0) + 1
     state.updated_at       = ctx.timestamp
     if state.metadata == nil then state.metadata = {} end
