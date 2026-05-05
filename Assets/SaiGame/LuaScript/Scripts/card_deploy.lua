@@ -17,6 +17,8 @@
 -- (alpha_hand + alpha_front_line + alpha_back_line) — no item may appear
 -- or disappear.
 
+local SLOT_COUNT = 5
+
 local resolve_session_id  -- forward declaration
 local load_session        -- forward declaration
 local validate_payload    -- forward declaration
@@ -52,9 +54,21 @@ local function main()
     end
 
     local state_ids = {}
-    for _, card in ipairs(state.alpha_hand) do state_ids[card.inventory_item_id] = true end
-    for _, card in ipairs(state.alpha_front_line or {}) do state_ids[card.inventory_item_id] = true end
-    for _, card in ipairs(state.alpha_back_line  or {}) do state_ids[card.inventory_item_id] = true end
+    for _, card in ipairs(state.alpha_hand) do
+        if card.inventory_item_id ~= nil and card.inventory_item_id ~= "" then
+            state_ids[card.inventory_item_id] = true
+        end
+    end
+    for _, card in ipairs(state.alpha_front_line or {}) do
+        if card.inventory_item_id ~= nil and card.inventory_item_id ~= "" then
+            state_ids[card.inventory_item_id] = true
+        end
+    end
+    for _, card in ipairs(state.alpha_back_line or {}) do
+        if card.inventory_item_id ~= nil and card.inventory_item_id ~= "" then
+            state_ids[card.inventory_item_id] = true
+        end
+    end
 
     for iid, _ in pairs(payload_ids) do
         if not state_ids[iid] then
@@ -73,20 +87,24 @@ local function main()
     if build_err ~= nil then output.error = build_err ; return end
 
     -- Build new alpha_hand from payload.hand preserving slot positions.
-    -- Empty-string slots ("") → nil in state to keep the hand layout in sync.
+    -- Missing or empty-string slots become {} (empty slot marker).
     local hand_index = {}
     for _, card in ipairs(state.alpha_hand) do
-        hand_index[card.inventory_item_id] = card
+        if card.inventory_item_id ~= nil and card.inventory_item_id ~= "" then
+            hand_index[card.inventory_item_id] = card
+        end
     end
 
     local remaining_hand = {}
     local remaining_count = 0
-    for i, iid in ipairs(payload.hand) do
-        if iid ~= "" then
+    for i = 1, SLOT_COUNT do
+        local iid = payload.hand[i]
+        if iid ~= nil and iid ~= "" then
             remaining_hand[i] = hand_index[iid]
             remaining_count = remaining_count + 1
+        else
+            remaining_hand[i] = {}
         end
-        -- iid == "" → remaining_hand[i] stays nil (empty slot in state)
     end
 
     state.alpha_hand       = remaining_hand
@@ -183,28 +201,36 @@ build_lines = function(alpha_hand)
     -- Index hand by inventory_item_id for O(1) lookup
     local hand_index = {}
     for _, card in ipairs(alpha_hand) do
-        hand_index[card.inventory_item_id] = card
+        if card.inventory_item_id ~= nil and card.inventory_item_id ~= "" then
+            hand_index[card.inventory_item_id] = card
+        end
     end
 
     local front_line = {}
-    for i, iid in ipairs(payload.front_line or {}) do
-        if iid ~= "" then
+    for i = 1, SLOT_COUNT do
+        local iid = (payload.front_line or {})[i]
+        if iid ~= nil and iid ~= "" then
             local card = hand_index[iid]
             if card == nil then
                 return nil, nil, "front_line[" .. i .. "] card (" .. iid .. ") not found in alpha_hand"
             end
-            table.insert(front_line, card)
+            front_line[i] = card
+        else
+            front_line[i] = {}
         end
     end
 
     local back_line = {}
-    for i, iid in ipairs(payload.back_line or {}) do
-        if iid ~= "" then
+    for i = 1, SLOT_COUNT do
+        local iid = (payload.back_line or {})[i]
+        if iid ~= nil and iid ~= "" then
             local card = hand_index[iid]
             if card == nil then
                 return nil, nil, "back_line[" .. i .. "] card (" .. iid .. ") not found in alpha_hand"
             end
-            table.insert(back_line, card)
+            back_line[i] = card
+        else
+            back_line[i] = {}
         end
     end
 

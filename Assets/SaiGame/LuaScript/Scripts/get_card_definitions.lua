@@ -80,11 +80,11 @@ collect_codes = function(state)
     collect_codes_from(seen, codes, state.alpha_back_line,  "item_definition_code_name")
     collect_codes_from(seen, codes, state.alpha_front_line, "item_definition_code_name")
     collect_codes_from(seen, codes, state.alpha_hand,       "item_definition_code_name")
-    collect_codes_from(seen, codes, state.omega_the_source, "item_code_name")
-    collect_codes_from(seen, codes, state.omega_the_void,   "item_code_name")
-    collect_codes_from(seen, codes, state.omega_back_line,  "item_code_name")
-    collect_codes_from(seen, codes, state.omega_front_line, "item_code_name")
-    collect_codes_from(seen, codes, state.omega_hand,       "item_code_name")
+    collect_codes_from(seen, codes, state.omega_the_source, "item_definition_code_name")
+    collect_codes_from(seen, codes, state.omega_the_void,   "item_definition_code_name")
+    collect_codes_from(seen, codes, state.omega_back_line,  "item_definition_code_name")
+    collect_codes_from(seen, codes, state.omega_front_line, "item_definition_code_name")
+    collect_codes_from(seen, codes, state.omega_hand,       "item_definition_code_name")
     return codes
 end
 

@@ -4,7 +4,7 @@
 --     Cards 1-3 : matched from alpha_preset_metadata by inventory_item_id in alpha_the_source.
 --     Cards 4-5 : drawn randomly from alpha_the_source.
 --   Omega (N cards):
---     Each choose_card_X in omega_preset_metadata holds an item_code_name.
+--     Each choose_card_X in omega_preset_metadata holds an item_definition_code_name.
 --     One matching card is picked per slot from omega_the_source.
 -- Drawn cards are removed from their respective source pools.
 --
@@ -80,11 +80,11 @@ find_and_remove = function(list, iid)
     return nil
 end
 
--- Finds the first item in list where item.item_code_name == code,
+-- Finds the first item in list where item.item_definition_code_name == code,
 -- removes it from the list, and returns the item. Returns nil if not found.
 find_and_remove_by_code = function(list, code)
     for i, item in ipairs(list) do
-        if item.item_code_name == code then
+        if item.item_definition_code_name == code then
             table.remove(list, i)
             return item
         end
@@ -145,6 +145,11 @@ alpha_draw = function(state)
         table.insert(hand, card)
     end
 
+    -- Pad to 5 slots with empty slot markers
+    for i = #hand + 1, 5 do
+        hand[i] = {}
+    end
+
     -- state.alpha_the_source has already been mutated in-place above
     return hand, nil
 end
@@ -178,7 +183,7 @@ omega_draw = function(state)
         return nil, "omega_preset_metadata has no choose_card slots"
     end
 
-    -- Pick one card per slot from omega_the_source by item_code_name
+    -- Pick one card per slot from omega_the_source by item_definition_code_name
     local hand = {}
     for _, slot in ipairs(code_names) do
         local card = find_and_remove_by_code(source, slot.code)
@@ -186,6 +191,11 @@ omega_draw = function(state)
             return nil, "omega preset " .. slot.key .. " (" .. slot.code .. ") not found in omega_the_source"
         end
         table.insert(hand, card)
+    end
+
+    -- Pad to 5 slots with empty slot markers
+    for i = #hand + 1, 5 do
+        hand[i] = {}
     end
 
     -- state.omega_the_source has already been mutated in-place above
