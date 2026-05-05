@@ -41,8 +41,11 @@ function battle_status()
     output.is_development = is_development
     output.game_status    = ctx.game ~= nil and ctx.game.status or nil
 
-    if is_development then
-        output.omega_hand = state.omega_hand
+    output.omega_hand = state.omega_hand
+    if not is_development and state.omega_hand ~= nil then
+        for _, slot in ipairs(state.omega_hand) do
+            slot.item_definition_code_name = nil
+        end
     end
 
     output.session_id             = session_id
