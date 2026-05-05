@@ -1,10 +1,12 @@
+require "lib_battle_common"
+
 -- init_cards
 -- Draws opening hands for both alpha and omega.
 --   Alpha (5 cards):
 --     Cards 1-3 : matched from alpha_preset_metadata by inventory_item_id in alpha_the_source.
 --     Cards 4-5 : drawn randomly from alpha_the_source.
 --   Omega (N cards):
---     Each choose_card_X in omega_preset_metadata holds an item_code_name.
+--     Each choose_card_X in omega_preset_metadata holds an item_definition_code_name.
 --     One matching card is picked per slot from omega_the_source.
 -- Drawn cards are removed from their respective source pools.
 --
@@ -38,24 +40,15 @@ local function main()
 
     state.alpha_hand = alpha_hand
     state.omega_hand = omega_hand
-    state.turn       = (state.turn or 0) + 1
+    state.action       = (state.action or 0) + 1
     state.updated_at = ctx.timestamp
+    if state.metadata == nil then state.metadata = {} end
+    state.metadata.next_move = "card_deploy"
 
     local save_err = game.battle_session_update(session_id, state)
     if save_err ~= nil then output.error = save_err ; return end
 
-    local is_development = ctx.game ~= nil and ctx.game.status == "development"
-    if is_development then
-        output.omega_hand = omega_hand
-    end
-    
-    output.session_id             = session_id
-    output.alpha_hand             = alpha_hand
-    output.alpha_cards_drawn      = #alpha_hand
-    output.alpha_the_source_count = state.alpha_the_source ~= nil and #state.alpha_the_source or 0
-
-    output.omega_cards_drawn      = #omega_hand
-    output.omega_the_source_count = state.omega_the_source ~= nil and #state.omega_the_source or 0
+    lib_battle_common.battle_status()
 end
 
 -- ─── Functions ───────────────────────────────────────────────────────────────
@@ -90,11 +83,11 @@ find_and_remove = function(list, iid)
     return nil
 end
 
--- Finds the first item in list where item.item_code_name == code,
+-- Finds the first item in list where item.item_definition_code_name == code,
 -- removes it from the list, and returns the item. Returns nil if not found.
 find_and_remove_by_code = function(list, code)
     for i, item in ipairs(list) do
-        if item.item_code_name == code then
+        if item.item_definition_code_name == code then
             table.remove(list, i)
             return item
         end
@@ -129,6 +122,7 @@ alpha_draw = function(state)
         if card == nil then
             return nil, "preset card " .. slot_names[i] .. " (" .. uid .. ") not found in alpha_the_source"
         end
+        card.card_action = "draw_from_source_to_hand"
         table.insert(preset_cards, card)
     end
 
@@ -143,6 +137,7 @@ alpha_draw = function(state)
     local random_cards = {}
     for _ = 1, random_count do
         local idx = math.random(1, #source)
+        source[idx].card_action = "draw_from_source_to_hand"
         table.insert(random_cards, source[idx])
         table.remove(source, idx)
     end
@@ -154,6 +149,18 @@ alpha_draw = function(state)
     end
     for _, card in ipairs(random_cards) do
         table.insert(hand, card)
+    end
+
+    -- Pad to init_card_max slots with empty slot markers
+    for i = #hand + 1, init_card_max do
+        hand[i] = {}
+    end
+
+    -- Update slot_index to match position in hand (0-based)
+    for i, card in ipairs(hand) do
+        if card.item_definition_code_name ~= nil and card.item_definition_code_name ~= "" then
+            card.slot_index = i - 1
+        end
     end
 
     -- state.alpha_the_source has already been mutated in-place above
@@ -189,13 +196,14 @@ omega_draw = function(state)
         return nil, "omega_preset_metadata has no choose_card slots"
     end
 
-    -- Pick one card per slot from omega_the_source by item_code_name
+    -- Pick one card per slot from omega_the_source by item_definition_code_name
     local hand = {}
     for _, slot in ipairs(code_names) do
         local card = find_and_remove_by_code(source, slot.code)
         if card == nil then
             return nil, "omega preset " .. slot.key .. " (" .. slot.code .. ") not found in omega_the_source"
         end
+        card.card_action = "draw_from_source_to_hand"
         table.insert(hand, card)
     end
 
@@ -205,8 +213,21 @@ omega_draw = function(state)
     for _ = 1, random_count do
         if #source == 0 then break end
         local idx = math.random(1, #source)
+        source[idx].card_action = "draw_from_source_to_hand"
         table.insert(hand, source[idx])
         table.remove(source, idx)
+    end
+
+    -- Pad to init_card_max slots with empty slot markers
+    for i = #hand + 1, init_card_max do
+        hand[i] = {}
+    end
+
+    -- Update slot_index to match position in hand (0-based)
+    for i, card in ipairs(hand) do
+        if card.item_definition_code_name ~= nil and card.item_definition_code_name ~= "" then
+            card.slot_index = i - 1
+        end
     end
 
     -- state.omega_the_source has already been mutated in-place above

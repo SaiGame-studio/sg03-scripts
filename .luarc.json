@@ -12,6 +12,7 @@
     "game"
   ],
   "diagnostics.disable": [
-    "lowercase-global"
+    "lowercase-global",
+        "undefined-global"
   ]
 }

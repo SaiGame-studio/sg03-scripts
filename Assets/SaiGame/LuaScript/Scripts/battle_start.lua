@@ -12,6 +12,8 @@
 --   }
 -- }
 
+require "lib_battle_common"
+
 -- Deck size limits — shared with player deck validation
 local DECK_CARD_MIN = 25
 local DECK_CARD_MAX = 52
@@ -65,11 +67,7 @@ local function main()
     local session_id, create_err = game.battle_session_create(state)
     if create_err ~= nil then output.error = create_err ; return end
 
-    output.session_id        = session_id
-    output.metadata          = state.metadata
-    output.turn              = state.turn
-    output.action            = state.action
-    output.status            = state.status
+    lib_battle_common.battle_status()
 end
 
 -- ─── Functions ───────────────────────────────────────────────────────────────
@@ -119,22 +117,23 @@ build_state = function(enemy, selected_mode, player_the_source, enemy_the_source
             omega              = enemy,
             battle_mode        = selected_mode,
             started_at         = ctx.timestamp,
+            next_move          = "init_cards",
         },
         alpha_preset_metadata  = preset ~= nil and preset.metadata or nil,
         alpha_hp           = hp,
         alpha_the_source   = player_the_source,
         alpha_the_void     = {},
-        alpha_hand         = {},  -- max 7 slots
-        alpha_front_line   = {},  -- max 5 slots
-        alpha_back_line    = {},  -- max 5 slots
+        alpha_hand         = { {}, {}, {}, {}, {} },  -- 5 slots
+        alpha_front_line   = { {}, {}, {}, {}, {} },  -- 5 slots
+        alpha_back_line    = { {}, {}, {}, {}, {} },  -- 5 slots
         omega_hp           = hp,
         omega_the_source   = enemy_the_source,
         omega_the_void     = {},
-        omega_hand         = {},  -- max 7 slots
-        omega_front_line   = {},  -- max 5 slots
-        omega_back_line    = {},  -- max 5 slots
-        turn               = 1,  -- increments when alpha or omega runs out of actions
-        action             = 1,  -- each action is one card played
+        omega_hand         = { {}, {}, {}, {}, {} },  -- 5 slots
+        omega_front_line   = { {}, {}, {}, {}, {} },  -- 5 slots
+        omega_back_line    = { {}, {}, {}, {}, {} },  -- 5 slots
+        turn               = 0,  -- increments when alpha or omega runs out of actions
+        action             = 0,  -- each action is one card played
         status             = "active",
     }
 end
@@ -142,6 +141,10 @@ end
 load_player_the_source = function(preset_instance_id)
     local slots, err = game.get_preset_slots(preset_instance_id)
     if err ~= nil then return nil, err end
+    for _, slot in ipairs(slots) do
+        slot.container_id = nil
+        slot.created_at   = nil
+    end
     return slots, nil
 end
 
@@ -153,9 +156,9 @@ load_enemy_the_source = function(enemy)
             local count = ability.card_count or 0
             for _ = 1, count do
                 source[#source + 1] = {
-                    id             = gen_id(),
-                    slot_index     = slot_index,
-                    item_code_name = ability.id,
+                    id                        = gen_id(),
+                    slot_index                = slot_index,
+                    item_definition_code_name = ability.id,
                 }
                 slot_index = slot_index + 1
             end
