@@ -87,16 +87,37 @@ if defender_card == nil then
 end
 
 -- ---------------------------------------------------------------------------
--- Fetch item definitions to read base_atk / base_def from base_status
+-- Fetch item definitions from cached state.item_defs (populated by get_card_definitions)
 -- ---------------------------------------------------------------------------
-local attacker_def, atk_def_err = game.get_item_def_by_id(attacker_card.item_def_id)
-if atk_def_err ~= nil then output.error = "attacker def fetch error: " .. atk_def_err ; return end
+local atk_code = attacker_card.item_definition_code_name
+local def_code = defender_card.item_definition_code_name
 
-local defender_def, def_def_err = game.get_item_def_by_id(defender_card.item_def_id)
-if def_def_err ~= nil then output.error = "defender def fetch error: " .. def_def_err ; return end
+if not atk_code or atk_code == "" then
+    output.error = "attacker card has no item_definition_code_name"
+    return
+end
 
-local base_atk  = (attacker_def.base_status and attacker_def.base_status.atk) or 0
-local base_def  = (defender_def.base_status and defender_def.base_status.def) or 0
+if not def_code or def_code == "" then
+    output.error = "defender card has no item_definition_code_name"
+    return
+end
+
+local function find_item_def(item_defs, code)
+    if item_defs == nil then return nil end
+    for _, def in ipairs(item_defs) do
+        if def.item_code == code then return def end
+    end
+    return nil
+end
+
+local attacker_def = find_item_def(state.item_defs, atk_code)
+local defender_def = find_item_def(state.item_defs, def_code)
+
+if attacker_def == nil then output.error = "item def not found in state.item_defs: " .. atk_code ; return end
+if defender_def == nil then output.error = "item def not found in state.item_defs: " .. def_code ; return end
+
+local base_atk  = (attacker_def.base_stats and attacker_def.base_stats.atk) or 0
+local base_def  = (defender_def.base_stats and defender_def.base_stats.def) or 0
 local final_def = base_def  -- buffs will be added here later
 
 -- ---------------------------------------------------------------------------
