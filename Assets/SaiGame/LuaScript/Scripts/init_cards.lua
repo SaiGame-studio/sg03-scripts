@@ -18,6 +18,14 @@ require "lib_battle_common"
 
 local init_card_max = 5
 
+local function gen_id()
+    local t = "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx"
+    return string.gsub(t, "[xy]", function(c)
+        local v = (c == "x") and math.random(0, 15) or math.random(8, 11)
+        return string.format("%x", v)
+    end)
+end
+
 local resolve_session_id    -- forward declaration
 local load_session          -- forward declaration
 local find_and_remove       -- forward declaration
@@ -196,6 +204,8 @@ omega_draw = function(state)
         return nil, "omega_preset_metadata has no choose_card slots"
     end
 
+    math.randomseed(ctx.timestamp)
+
     -- Pick one card per slot from omega_the_source by item_definition_code_name
     local hand = {}
     for _, slot in ipairs(code_names) do
@@ -203,16 +213,19 @@ omega_draw = function(state)
         if card == nil then
             return nil, "omega preset " .. slot.key .. " (" .. slot.code .. ") not found in omega_the_source"
         end
+        card.id                = gen_id()
+        card.inventory_item_id = gen_id()
         card.card_action = "draw_from_source_to_hand"
         table.insert(hand, card)
     end
 
     -- Draw random cards to fill up to init_card_max
-    math.randomseed(ctx.timestamp)
     local random_count = init_card_max - #hand
     for _ = 1, random_count do
         if #source == 0 then break end
         local idx = math.random(1, #source)
+        source[idx].id                = gen_id()
+        source[idx].inventory_item_id = gen_id()
         source[idx].card_action = "draw_from_source_to_hand"
         table.insert(hand, source[idx])
         table.remove(source, idx)
