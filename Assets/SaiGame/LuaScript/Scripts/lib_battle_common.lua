@@ -15,6 +15,19 @@ function count_cards(list)
     return n
 end
 
+-- Removes the first card with matching inventory_item_id from a line array.
+-- Returns true if a card was removed, false otherwise.
+function remove_card_from_line(line, iid)
+    if line == nil then return false end
+    for i, card in ipairs(line) do
+        if card.inventory_item_id == iid then
+            table.remove(line, i)
+            return true
+        end
+    end
+    return false
+end
+
 -- ─── battle_status ───────────────────────────────────────────────────────────
 -- Reads the current battle session and writes its full state into output.
 
