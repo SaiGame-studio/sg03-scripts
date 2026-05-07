@@ -4,15 +4,17 @@
 
 -- ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function count_cards(list)
-    if list == nil then return 0 end
-    local n = 0
-    for _, slot in ipairs(list) do
-        if slot.item_definition_code_name ~= nil and slot.item_definition_code_name ~= "" then
-            n = n + 1
+-- Removes the first card with matching inventory_item_id from a line array.
+-- Returns true if a card was removed, false otherwise.
+function remove_card_from_line(line, iid)
+    if line == nil then return false end
+    for i, card in ipairs(line) do
+        if card.inventory_item_id == iid then
+            table.remove(line, i)
+            return true
         end
     end
-    return n
+    return false
 end
 
 -- ─── battle_status ───────────────────────────────────────────────────────────
@@ -36,12 +38,12 @@ function battle_status()
         output.error = "battle session not found"; return
     end
 
-    local is_development = ctx.game ~= nil and ctx.game.status == "development"
+    local is_development  = ctx.game ~= nil and ctx.game.status == "development"
 
     output.is_development = is_development
     output.game_status    = ctx.game ~= nil and ctx.game.status or nil
 
-    output.omega_hand = state.omega_hand
+    output.omega_hand     = state.omega_hand
     if not is_development and state.omega_hand ~= nil then
         for _, slot in ipairs(state.omega_hand) do
             slot.item_definition_code_name = nil
@@ -59,9 +61,9 @@ function battle_status()
     output.omega_hp               = state.omega_hp
     output.omega_the_source_count = state.omega_the_source ~= nil and #state.omega_the_source or 0
     output.omega_the_void_count   = state.omega_the_void ~= nil and #state.omega_the_void or 0
-    output.omega_hand_count       = count_cards(state.omega_hand)
     output.omega_front_line       = state.omega_front_line
     output.omega_back_line        = state.omega_back_line
+    output.item_defs              = is_development and state.item_defs or nil
     output.turn                   = state.turn
     output.action                 = state.action
     output.status                 = state.status

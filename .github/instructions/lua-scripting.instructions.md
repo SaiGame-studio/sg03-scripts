@@ -89,3 +89,15 @@ end
 ## Available API
 
 See `CONTRACT.md` and `.lua-libs/ss-go-game-api.lua` in this package. Do not call any unlisted function.
+
+## lib_battle_common
+
+Before creating any `local function` inside a battle script, always check `lib_battle_common.lua` first to see if that function or a similar one already exists. If it does, use `lib_battle_common.<func>()` instead of redefining it locally.
+
+## Library Import
+
+Always use `require "lib_name"` to import libraries. Never use `include`.
+
+## Language
+
+Always use English in all code, comments, variable names, string literals, and log messages. Never use any other language.

@@ -33,6 +33,10 @@ local function main()
     local defs, fetch_err = fetch_definitions(codes)
     if fetch_err ~= nil then output.error = fetch_err ; return end
 
+    state.item_defs = defs
+    local save_err = game.battle_session_update(session_id, state)
+    if save_err ~= nil then output.error = "failed to save item_defs to battle state: " .. save_err ; return end
+
     output.session_id  = session_id
     output.codes       = codes
     output.definitions = defs

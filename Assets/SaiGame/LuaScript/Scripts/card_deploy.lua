@@ -92,6 +92,27 @@ local function main()
         end
     end
 
+    -- Enforce: at most 1 NEW card may be deployed to front_line per turn.
+    -- Cards already present in state.alpha_front_line are not counted as new.
+    local existing_front_ids = {}
+    for _, card in ipairs(state.alpha_front_line or {}) do
+        if card.inventory_item_id ~= nil and card.inventory_item_id ~= "" then
+            existing_front_ids[card.inventory_item_id] = true
+        end
+    end
+
+    local new_front_count = 0
+    for _, slot in ipairs(payload.front_line or {}) do
+        local iid = slot.inventory_item_id
+        if iid ~= nil and iid ~= "" and not existing_front_ids[iid] then
+            new_front_count = new_front_count + 1
+        end
+    end
+    if new_front_count > 1 then
+        output.error = "only 1 new card may be deployed to front_line per turn (" .. new_front_count .. " new cards received)"
+        return
+    end
+
     local front_line, back_line, build_err = build_lines(state.alpha_hand)
     if build_err ~= nil then output.error = build_err ; return end
 
