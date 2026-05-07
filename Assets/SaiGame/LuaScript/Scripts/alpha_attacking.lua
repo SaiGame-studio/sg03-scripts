@@ -41,15 +41,6 @@ local state, state_err = game.battle_session_get(session_id)
 if state_err ~= nil then output.error = state_err ; return end
 if state == nil then output.error = "battle session not found" ; return end
 
-local is_development = ctx.game ~= nil and ctx.game.status == "development"
-local debug_log = {}
-local function dlog(msg)
-    game.log(msg)
-    if is_development then
-        table.insert(debug_log, msg)
-    end
-end
-
 -- ---------------------------------------------------------------------------
 -- Find attacker/defender card in state lines
 -- void_key tracks which side (alpha/omega) the defender belongs to,
@@ -135,16 +126,6 @@ local defeated     = total_damage > final_def
 -- attacker_card.card_action = "attacking"
 -- defender_card.card_action = defeated and "sent_to_void" or "damaged"
 
-dlog(
-    "alpha_attacking: atk=" .. atk_code ..
-    " base_atk=" .. base_atk ..
-    " def=" .. def_code ..
-    " base_def=" .. base_def ..
-    " final_def=" .. final_def ..
-    " total_dmg_received=" .. total_damage ..
-    " defeated=" .. tostring(defeated)
-)
-
 -- ---------------------------------------------------------------------------
 -- If defeated → remove from its line and move to the correct void
 -- ---------------------------------------------------------------------------
@@ -152,7 +133,18 @@ if defeated then
     lib_battle_common.remove_card_from_line(state[defender_line_key], payload.defender_inventory_item_id)
     if state[defender_side_void] == nil then state[defender_side_void] = {} end
     table.insert(state[defender_side_void], defender_card)
-    dlog("card " .. def_code .. " defeated and moved to " .. defender_side_void)
+end
+
+-- ---------------------------------------------------------------------------
+-- Client actions
+-- ---------------------------------------------------------------------------
+if state.client_actions == nil then state.client_actions = {} end
+local defender_side = defender_side_void == "alpha_the_void" and "alpha" or "omega"
+table.insert(state.client_actions, "alpha_attack:" .. payload.attacker_inventory_item_id .. "," .. payload.defender_inventory_item_id)
+if defeated then
+    table.insert(state.client_actions, defender_side .. "_card_sent_to_void:" .. payload.defender_inventory_item_id)
+else
+    table.insert(state.client_actions, defender_side .. "_card_damaged:" .. payload.defender_inventory_item_id .. "," .. total_damage)
 end
 
 -- ---------------------------------------------------------------------------
@@ -167,5 +159,4 @@ if save_err ~= nil then output.error = "failed to save battle state: " .. save_e
 -- ---------------------------------------------------------------------------
 -- Output: full battle state
 -- ---------------------------------------------------------------------------
-if is_development then output.debug_log = debug_log end
 lib_battle_common.battle_status()
