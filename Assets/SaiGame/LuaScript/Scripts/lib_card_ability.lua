@@ -82,6 +82,13 @@ end
 -- returns the resulting client actions ("card_ability_defeated" or "card_ability_damaged").
 -- target_line and void_key may be nil if line removal is not needed.
 function deal_damage_to_character(state, attacker_card, target_card, damage, target_line, void_key)
+    if not lib_battle_common.check_card_type(state.item_defs, attacker_card, "character") then
+        return {}, "attacker is not a valid character"
+    end
+    if not lib_battle_common.check_card_type(state.item_defs, target_card, "character") then
+        return {}, "target is not a valid character"
+    end
+
     -- Always resolve final_def from item def (same as do_normal_attack in alpha_attacking).
     -- Buffs will be applied here later.
     local target_item_def = _find_item_def(state.item_defs, target_card.item_definition_code_name)

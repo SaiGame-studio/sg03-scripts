@@ -4,6 +4,21 @@
 
 -- ─── Helpers ─────────────────────────────────────────────────────────────────
 
+-- Returns true if the card's item definition metadata.type matches card_type.
+-- Looks up the definition from item_defs using card.item_definition_code_name.
+function check_card_type(item_defs, card, card_type)
+    if card == nil then return false end
+    if item_defs == nil then return false end
+    local code = card.item_definition_code_name
+    if code == nil then return false end
+    for _, item_def in ipairs(item_defs) do
+        if item_def.item_code == code then
+            return item_def.metadata ~= nil and item_def.metadata.type == card_type
+        end
+    end
+    return false
+end
+
 -- Removes the first card with matching inventory_item_id from a line array.
 -- Returns true if a card was removed, false otherwise.
 function remove_card_from_line(line, inventory_item_id)
