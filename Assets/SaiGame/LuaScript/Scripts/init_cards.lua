@@ -48,6 +48,19 @@ local function main()
 
     state.alpha_hand = alpha_hand
     state.omega_hand = omega_hand
+
+    if state.client_actions == nil then state.client_actions = {} end
+    for _, card in ipairs(alpha_hand) do
+        if card.inventory_item_id ~= nil and card.inventory_item_id ~= "" then
+            table.insert(state.client_actions, "alpha_source_to_hand:" .. card.inventory_item_id .. "," .. (card.slot_index or 0))
+        end
+    end
+    for _, card in ipairs(omega_hand) do
+        if card.inventory_item_id ~= nil and card.inventory_item_id ~= "" then
+            table.insert(state.client_actions, "omega_source_to_hand:" .. card.inventory_item_id .. "," .. (card.slot_index or 0))
+        end
+    end
+
     state.action       = (state.action or 0) + 1
     state.updated_at = ctx.timestamp
     if state.metadata == nil then state.metadata = {} end
@@ -79,11 +92,11 @@ load_session = function(session_id)
     return state, nil
 end
 
--- Finds the first item in list where item.inventory_item_id == iid,
+-- Finds the first item in list where item.inventory_item_id == inventory_item_id,
 -- removes it from the list, and returns the item. Returns nil if not found.
-find_and_remove = function(list, iid)
+find_and_remove = function(list, inventory_item_id)
     for i, item in ipairs(list) do
-        if item.inventory_item_id == iid then
+        if item.inventory_item_id == inventory_item_id then
             table.remove(list, i)
             return item
         end
@@ -130,7 +143,7 @@ alpha_draw = function(state)
         if card == nil then
             return nil, "preset card " .. slot_names[i] .. " (" .. uid .. ") not found in alpha_the_source"
         end
-        card.card_action = "draw_from_source_to_hand"
+        -- card.card_action = "draw_from_source_to_hand"
         table.insert(preset_cards, card)
     end
 
@@ -145,7 +158,7 @@ alpha_draw = function(state)
     local random_cards = {}
     for _ = 1, random_count do
         local idx = math.random(1, #source)
-        source[idx].card_action = "draw_from_source_to_hand"
+        -- source[idx].card_action = "draw_from_source_to_hand"
         table.insert(random_cards, source[idx])
         table.remove(source, idx)
     end
@@ -215,7 +228,7 @@ omega_draw = function(state)
         end
         card.id                = gen_id()
         card.inventory_item_id = gen_id()
-        card.card_action = "draw_from_source_to_hand"
+        -- card.card_action = "draw_from_source_to_hand"
         table.insert(hand, card)
     end
 
@@ -226,7 +239,7 @@ omega_draw = function(state)
         local idx = math.random(1, #source)
         source[idx].id                = gen_id()
         source[idx].inventory_item_id = gen_id()
-        source[idx].card_action = "draw_from_source_to_hand"
+        -- source[idx].card_action = "draw_from_source_to_hand"
         table.insert(hand, source[idx])
         table.remove(source, idx)
     end

@@ -1,4 +1,5 @@
 require "lib_battle_common"
+require "lib_card_ability"
 
 -- alpha_attacking.lua
 -- Applies attacker's base_atk as damage onto the defender card in the battle state.
@@ -40,15 +41,6 @@ end
 local state, state_err = game.battle_session_get(session_id)
 if state_err ~= nil then output.error = state_err ; return end
 if state == nil then output.error = "battle session not found" ; return end
-
-local is_development = ctx.game ~= nil and ctx.game.status == "development"
-local debug_log = {}
-local function dlog(msg)
-    game.log(msg)
-    if is_development then
-        table.insert(debug_log, msg)
-    end
-end
 
 -- ---------------------------------------------------------------------------
 -- Find attacker/defender card in state lines
@@ -116,44 +108,50 @@ local defender_def = find_item_def(state.item_defs, def_code)
 if attacker_def == nil then output.error = "item def not found in state.item_defs: " .. atk_code ; return end
 if defender_def == nil then output.error = "item def not found in state.item_defs: " .. def_code ; return end
 
-local base_atk  = (attacker_def.base_stats and attacker_def.base_stats.atk) or 0
-local base_def  = (defender_def.base_stats and defender_def.base_stats.def) or 0
-local final_def = base_def  -- buffs will be added here later
-
-base_atk = 1 --To debug
-
 -- ---------------------------------------------------------------------------
--- Accumulate damage on the defender card object inside the state
+-- Execute normal attack
 -- ---------------------------------------------------------------------------
-local prev_damage = defender_card.total_damage_received or 0
-defender_card.total_damage_received = prev_damage + base_atk
-defender_card.final_def             = final_def
+local base_atk     = (attacker_def.base_stats and attacker_def.base_stats.atk) or 0
+local damage_dealt = base_atk
+damage_dealt = 10  -- To debug
 
-local total_damage = defender_card.total_damage_received
-local defeated     = total_damage > final_def
-
-attacker_card.card_action = "attacking"
-defender_card.card_action = defeated and "sent_to_void" or "damaged"
-
-dlog(
-    "alpha_attacking: atk=" .. atk_code ..
-    " base_atk=" .. base_atk ..
-    " def=" .. def_code ..
-    " base_def=" .. base_def ..
-    " final_def=" .. final_def ..
-    " total_dmg_received=" .. total_damage ..
-    " defeated=" .. tostring(defeated)
+local dmg_actions, dmg_err = lib_card_ability.deal_damage_to_character(
+    state, attacker_card, defender_card, damage_dealt, state[defender_line_key], defender_side_void
 )
+if dmg_err ~= nil then output.error = dmg_err ; return end
+
+-- Trigger attacker ability after damage is resolved.
+local atk_event_data = {}
+atk_event_data.defender_card      = defender_card
+atk_event_data.damage_dealt       = damage_dealt
+atk_event_data.attacker_def       = attacker_def
+atk_event_data.defender_def       = defender_def
+atk_event_data.defender_line_key  = defender_line_key
+atk_event_data.defender_side_void = defender_side_void
+local atk_ability_actions, atk_ability_err = lib_card_ability.trigger_card_ability(
+    state, attacker_card, "on_attack", atk_event_data
+)
+if atk_ability_err ~= nil then output.error = atk_ability_err ; return end
+
+-- Trigger defender ability after attacker ability.
+local def_event_data = {}
+def_event_data.attacker_card   = attacker_card
+def_event_data.damage_received = damage_dealt
+def_event_data.attacker_def    = attacker_def
+def_event_data.defender_def    = defender_def
+local def_ability_actions, def_ability_err = lib_card_ability.trigger_card_ability(
+    state, defender_card, "on_damaged", def_event_data
+)
+if def_ability_err ~= nil then output.error = def_ability_err ; return end
 
 -- ---------------------------------------------------------------------------
--- If defeated → remove from its line and move to the correct void
+-- Client actions
 -- ---------------------------------------------------------------------------
-if defeated then
-    lib_battle_common.remove_card_from_line(state[defender_line_key], payload.defender_inventory_item_id)
-    if state[defender_side_void] == nil then state[defender_side_void] = {} end
-    table.insert(state[defender_side_void], defender_card)
-    dlog("card " .. def_code .. " defeated and moved to " .. defender_side_void)
-end
+if state.client_actions == nil then state.client_actions = {} end
+table.insert(state.client_actions, "alpha_attack:" .. payload.attacker_inventory_item_id .. "," .. payload.defender_inventory_item_id)
+for _, action in ipairs(dmg_actions) do table.insert(state.client_actions, action) end
+for _, action in ipairs(atk_ability_actions) do table.insert(state.client_actions, action) end
+for _, action in ipairs(def_ability_actions) do table.insert(state.client_actions, action) end
 
 -- ---------------------------------------------------------------------------
 -- Save updated state
@@ -167,5 +165,4 @@ if save_err ~= nil then output.error = "failed to save battle state: " .. save_e
 -- ---------------------------------------------------------------------------
 -- Output: full battle state
 -- ---------------------------------------------------------------------------
-if is_development then output.debug_log = debug_log end
 lib_battle_common.battle_status()

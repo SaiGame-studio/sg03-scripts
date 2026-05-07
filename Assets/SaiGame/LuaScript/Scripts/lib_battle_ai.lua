@@ -62,7 +62,7 @@ function _build_line(card_list, face_up, card_action)
         card.slot_index  = i - 1
         card.face_up     = face_up
         card.expose      = face_up
-        card.card_action = card_action
+        -- card.card_action = card_action
         line[i]          = card
     end
     return line

@@ -101,3 +101,54 @@ Always use `require "lib_name"` to import libraries. Never use `include`.
 ## Language
 
 Always use English in all code, comments, variable names, string literals, and log messages. Never use any other language.
+
+## Variable Naming — No Generic Names
+
+Variable names must describe the **role or domain** of the value, not its type or position.
+
+**Forbidden generic names** (and their required replacements):
+
+| Forbidden | Use instead (example) |
+| --- | --- |
+| `card` | `attacker_card`, `defender_card`, `target_card` |
+| `def` | `attacker_def`, `defender_def`, `target_def`, `item_def` |
+| `data` | `event_data`, `payload_data`, `session_data` |
+| `obj` | `card_obj`, `session_obj` — or eliminate and use a descriptive name |
+| `result` | `battle_result`, `ability_result`, `query_result` |
+| `item` | `card_item`, `reward_item`, `loot_item` |
+| `val` | `damage_val`, `def_val` — or rename to the concept: `damage`, `armor` |
+| `tmp` / `temp` | use the actual concept being stored |
+| `k` / `v` (in generic loops) | `key` / `card`, `key` / `ability_key`, etc. |
+| `c` (loop variable over cards) | `card`, `attacker_card`, `slot_card`, etc. |
+| `t` | the actual type name: `line`, `actions`, `keys` |
+| `s` | `state`, `session`, `source` |
+| `e` | `err`, `event`, `entry` |
+
+**Rules:**
+- When a function receives a card that can be distinguished by role (attacker vs. defender vs. target), always use the role-prefixed name.
+- When a variable is a definition/stat block looked up for a specific entity, suffix with `_def` plus a role prefix: `attacker_def`, `target_def`.
+- Loop variables must name what they iterate over: `for _, ability_key in ipairs(keys)` not `for _, k`.
+- Single-letter variables are forbidden except for math-only locals (`i`, `j`, `n` in numeric for loops).
+
+## Function Call Style — No Inline Table Literals
+
+Never construct a table literal `{ ... }` directly inside a function call argument list.
+Always assign the table to a named local variable first, then pass that variable.
+
+**Forbidden:**
+```lua
+lib_card_ability.trigger_card_ability(state, card, "on_attack", {
+    defender_card = defender_card,
+    damage_dealt  = damage_dealt,
+})
+```
+
+**Required:**
+```lua
+local atk_event_data = {}
+atk_event_data.defender_card = defender_card
+atk_event_data.damage_dealt  = damage_dealt
+lib_card_ability.trigger_card_ability(state, card, "on_attack", atk_event_data)
+```
+
+This rule applies to all function calls, including `game.*`, library calls, and local functions.
