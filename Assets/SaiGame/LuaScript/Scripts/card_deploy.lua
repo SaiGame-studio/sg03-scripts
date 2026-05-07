@@ -268,7 +268,7 @@ build_lines = function(alpha_hand)
             local face_up = slot.face_up == true
             card.face_up     = face_up
             card.expose      = face_up
-            card.card_action = "in_front_line"
+            -- card.card_action = "in_front_line"
             card.slot_index  = slot.slot_index
             front_line[slot.slot_index + 1] = card
         end
@@ -286,7 +286,7 @@ build_lines = function(alpha_hand)
             local face_up = slot.face_up == true
             card.face_up     = face_up
             card.expose      = face_up
-            card.card_action = "in_back_line"
+            -- card.card_action = "in_back_line"
             card.slot_index  = slot.slot_index
             back_line[slot.slot_index + 1] = card
         end

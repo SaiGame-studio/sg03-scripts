@@ -68,4 +68,5 @@ function battle_status()
     output.action                 = state.action
     output.status                 = state.status
     output.next_move              = state.metadata ~= nil and state.metadata.next_move or nil
+    output.client_actions         = state.client_actions
 end

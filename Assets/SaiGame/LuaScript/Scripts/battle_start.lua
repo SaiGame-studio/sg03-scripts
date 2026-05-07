@@ -135,6 +135,10 @@ build_state = function(enemy, selected_mode, player_the_source, enemy_the_source
         turn               = 0,  -- increments when alpha or omega runs out of actions
         action             = 0,  -- each action is one card played
         status             = "active",
+        client_actions     = {
+            "alpha_source_spawn_card:" .. #player_the_source,
+            "omega_source_spawn_card:" .. #enemy_the_source,
+        },
     }
 end
 

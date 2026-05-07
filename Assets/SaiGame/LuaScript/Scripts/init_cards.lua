@@ -130,7 +130,7 @@ alpha_draw = function(state)
         if card == nil then
             return nil, "preset card " .. slot_names[i] .. " (" .. uid .. ") not found in alpha_the_source"
         end
-        card.card_action = "draw_from_source_to_hand"
+        -- card.card_action = "draw_from_source_to_hand"
         table.insert(preset_cards, card)
     end
 
@@ -145,7 +145,7 @@ alpha_draw = function(state)
     local random_cards = {}
     for _ = 1, random_count do
         local idx = math.random(1, #source)
-        source[idx].card_action = "draw_from_source_to_hand"
+        -- source[idx].card_action = "draw_from_source_to_hand"
         table.insert(random_cards, source[idx])
         table.remove(source, idx)
     end
@@ -215,7 +215,7 @@ omega_draw = function(state)
         end
         card.id                = gen_id()
         card.inventory_item_id = gen_id()
-        card.card_action = "draw_from_source_to_hand"
+        -- card.card_action = "draw_from_source_to_hand"
         table.insert(hand, card)
     end
 
@@ -226,7 +226,7 @@ omega_draw = function(state)
         local idx = math.random(1, #source)
         source[idx].id                = gen_id()
         source[idx].inventory_item_id = gen_id()
-        source[idx].card_action = "draw_from_source_to_hand"
+        -- source[idx].card_action = "draw_from_source_to_hand"
         table.insert(hand, source[idx])
         table.remove(source, idx)
     end

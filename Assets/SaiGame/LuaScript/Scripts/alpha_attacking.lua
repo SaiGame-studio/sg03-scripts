@@ -132,8 +132,8 @@ defender_card.final_def             = final_def
 local total_damage = defender_card.total_damage_received
 local defeated     = total_damage > final_def
 
-attacker_card.card_action = "attacking"
-defender_card.card_action = defeated and "sent_to_void" or "damaged"
+-- attacker_card.card_action = "attacking"
+-- defender_card.card_action = defeated and "sent_to_void" or "damaged"
 
 dlog(
     "alpha_attacking: atk=" .. atk_code ..
