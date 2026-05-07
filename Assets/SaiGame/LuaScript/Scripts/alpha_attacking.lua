@@ -120,11 +120,14 @@ local base_atk  = (attacker_def.base_stats and attacker_def.base_stats.atk) or 0
 local base_def  = (defender_def.base_stats and defender_def.base_stats.def) or 0
 local final_def = base_def  -- buffs will be added here later
 
+base_atk = 1 --To debug
+
 -- ---------------------------------------------------------------------------
 -- Accumulate damage on the defender card object inside the state
 -- ---------------------------------------------------------------------------
 local prev_damage = defender_card.total_damage_received or 0
 defender_card.total_damage_received = prev_damage + base_atk
+defender_card.final_def             = final_def
 
 local total_damage = defender_card.total_damage_received
 local defeated     = total_damage > final_def
@@ -133,9 +136,9 @@ attacker_card.card_action = "attacking"
 defender_card.card_action = defeated and "sent_to_void" or "damaged"
 
 dlog(
-    "alpha_attacking: atk=" .. payload.attacker_inventory_item_id ..
+    "alpha_attacking: atk=" .. atk_code ..
     " base_atk=" .. base_atk ..
-    " def=" .. payload.defender_inventory_item_id ..
+    " def=" .. def_code ..
     " base_def=" .. base_def ..
     " final_def=" .. final_def ..
     " total_dmg_received=" .. total_damage ..
@@ -149,7 +152,7 @@ if defeated then
     lib_battle_common.remove_card_from_line(state[defender_line_key], payload.defender_inventory_item_id)
     if state[defender_side_void] == nil then state[defender_side_void] = {} end
     table.insert(state[defender_side_void], defender_card)
-    dlog("card " .. payload.defender_inventory_item_id .. " defeated and moved to " .. defender_side_void)
+    dlog("card " .. def_code .. " defeated and moved to " .. defender_side_void)
 end
 
 -- ---------------------------------------------------------------------------

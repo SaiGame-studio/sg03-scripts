@@ -97,3 +97,7 @@ Before creating any `local function` inside a battle script, always check `lib_b
 ## Library Import
 
 Always use `require "lib_name"` to import libraries. Never use `include`.
+
+## Language
+
+Always use English in all code, comments, variable names, string literals, and log messages. Never use any other language.
