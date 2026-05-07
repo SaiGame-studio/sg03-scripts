@@ -44,6 +44,27 @@ end
 
 -- ─── Shared internal helpers ────────────────────────────────────────────────
 
+-- Returns "alpha" or "omega" by scanning state lines for the given card.
+local function _find_card_side(state, card)
+    local alpha_lines = { state.alpha_front_line, state.alpha_back_line }
+    local omega_lines = { state.omega_front_line, state.omega_back_line }
+    for _, line in ipairs(alpha_lines) do
+        if line ~= nil then
+            for _, slot_card in ipairs(line) do
+                if slot_card.inventory_item_id == card.inventory_item_id then return "alpha" end
+            end
+        end
+    end
+    for _, line in ipairs(omega_lines) do
+        if line ~= nil then
+            for _, slot_card in ipairs(line) do
+                if slot_card.inventory_item_id == card.inventory_item_id then return "omega" end
+            end
+        end
+    end
+    return "unknown"
+end
+
 -- Looks up an item definition from state.item_defs by item_code.
 local function _find_item_def(item_defs, code)
     if item_defs == nil or code == nil then return nil end
@@ -60,7 +81,7 @@ end
 -- Applies damage to target_card, removes it from target_line if defeated, and
 -- returns the resulting client actions ("card_ability_defeated" or "card_ability_damaged").
 -- target_line and void_key may be nil if line removal is not needed.
-function deal_damage_to_character(state, target_card, damage, target_line, void_key)
+function deal_damage_to_character(state, attacker_card, target_card, damage, target_line, void_key)
     -- Always resolve final_def from item def (same as do_normal_attack in alpha_attacking).
     -- Buffs will be applied here later.
     local target_item_def = _find_item_def(state.item_defs, target_card.item_definition_code_name)
@@ -68,11 +89,21 @@ function deal_damage_to_character(state, target_card, damage, target_line, void_
     local final_def       = base_def
     target_card.final_def = final_def   -- always persist, matches alpha_attacking pattern
 
+    -- Expose both cards when damage is dealt.
+    attacker_card.face_up = true
+    attacker_card.expose  = true
+    target_card.face_up = true
+    target_card.expose  = true
+
     local prev_damage = target_card.total_damage_received or 0
     target_card.total_damage_received = prev_damage + damage
     local defeated = target_card.total_damage_received > final_def
 
+    local attacker_side = _find_card_side(state, attacker_card)
+    local target_side   = void_key == "alpha_the_void" and "alpha" or "omega"
     local damage_actions = {}
+    table.insert(damage_actions, attacker_side .. "_card_expose:" .. attacker_card.inventory_item_id)
+    table.insert(damage_actions, target_side .. "_card_expose:" .. target_card.inventory_item_id)
     if defeated then
         if target_line ~= nil then
             for i, slot_card in ipairs(target_line) do
@@ -86,9 +117,9 @@ function deal_damage_to_character(state, target_card, damage, target_line, void_
             if state[void_key] == nil then state[void_key] = {} end
             table.insert(state[void_key], target_card)
         end
-        table.insert(damage_actions, "card_ability_defeated:" .. target_card.inventory_item_id)
+        table.insert(damage_actions, target_side .. "_card_sent_to_void:" .. target_card.inventory_item_id)
     else
-        table.insert(damage_actions, "card_ability_damaged:" .. target_card.inventory_item_id .. "," .. target_card.total_damage_received)
+        table.insert(damage_actions, target_side .. "_card_damaged:" .. target_card.inventory_item_id .. "," .. target_card.total_damage_received)
     end
     return damage_actions, nil
 end
@@ -133,7 +164,7 @@ local function _handle_twin_reaper(state, attacker_card, event_data)
     local damage        = (attacker_def ~= nil and attacker_def.base_stats and attacker_def.base_stats.atk) or 1
 
     local ability_actions = { "card_ability:" .. attacker_card.inventory_item_id .. ",twin_reaper," .. target.inventory_item_id }
-    local damage_actions, dmg_err = deal_damage_to_character(state, target, damage, defender_line, void_key)
+    local damage_actions, dmg_err = deal_damage_to_character(state, attacker_card, target, damage, defender_line, void_key)
     if dmg_err ~= nil then return ability_actions, dmg_err end
     for _, action in ipairs(damage_actions) do
         table.insert(ability_actions, action)
@@ -171,6 +202,13 @@ function trigger_card_ability(state, source_card, trigger_event, event_data)
     end
 
     local all_actions = {}
+
+    -- Expose the source card when it activates abilities.
+    source_card.face_up = true
+    source_card.expose  = true
+    local source_side = _find_card_side(state, source_card)
+    table.insert(all_actions, source_side .. "_card_expose:" .. source_card.inventory_item_id)
+
     for _, ability_key in ipairs(keys) do
         local ability_actions, err = _dispatch_one_ability(state, source_card, ability_key, trigger_event, event_data)
         if err ~= nil then return all_actions, err end

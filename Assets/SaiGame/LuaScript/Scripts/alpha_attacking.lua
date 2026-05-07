@@ -115,12 +115,10 @@ local base_atk     = (attacker_def.base_stats and attacker_def.base_stats.atk) o
 local damage_dealt = base_atk
 damage_dealt = 10  -- To debug
 
-local _, dmg_err = lib_card_ability.deal_damage_to_character(
-    state, defender_card, damage_dealt, state[defender_line_key], defender_side_void
+local dmg_actions, dmg_err = lib_card_ability.deal_damage_to_character(
+    state, attacker_card, defender_card, damage_dealt, state[defender_line_key], defender_side_void
 )
 if dmg_err ~= nil then output.error = dmg_err ; return end
-
-local total_damage = defender_card.total_damage_received
 
 -- Trigger attacker ability after damage is resolved.
 local atk_event_data = {}
@@ -146,20 +144,12 @@ local def_ability_actions, def_ability_err = lib_card_ability.trigger_card_abili
 )
 if def_ability_err ~= nil then output.error = def_ability_err ; return end
 
--- Determine defeated only after all abilities have resolved.
-local defeated = total_damage > defender_card.final_def
-
 -- ---------------------------------------------------------------------------
 -- Client actions
 -- ---------------------------------------------------------------------------
 if state.client_actions == nil then state.client_actions = {} end
-local defender_side = defender_side_void == "alpha_the_void" and "alpha" or "omega"
 table.insert(state.client_actions, "alpha_attack:" .. payload.attacker_inventory_item_id .. "," .. payload.defender_inventory_item_id)
-if defeated then
-    table.insert(state.client_actions, defender_side .. "_card_sent_to_void:" .. payload.defender_inventory_item_id)
-else
-    table.insert(state.client_actions, defender_side .. "_card_damaged:" .. payload.defender_inventory_item_id .. "," .. total_damage)
-end
+for _, action in ipairs(dmg_actions) do table.insert(state.client_actions, action) end
 for _, action in ipairs(atk_ability_actions) do table.insert(state.client_actions, action) end
 for _, action in ipairs(def_ability_actions) do table.insert(state.client_actions, action) end
 
