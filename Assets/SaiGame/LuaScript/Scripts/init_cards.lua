@@ -92,11 +92,11 @@ load_session = function(session_id)
     return state, nil
 end
 
--- Finds the first item in list where item.inventory_item_id == iid,
+-- Finds the first item in list where item.inventory_item_id == inventory_item_id,
 -- removes it from the list, and returns the item. Returns nil if not found.
-find_and_remove = function(list, iid)
+find_and_remove = function(list, inventory_item_id)
     for i, item in ipairs(list) do
-        if item.inventory_item_id == iid then
+        if item.inventory_item_id == inventory_item_id then
             table.remove(list, i)
             return item
         end

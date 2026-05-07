@@ -6,10 +6,10 @@
 
 -- Removes the first card with matching inventory_item_id from a line array.
 -- Returns true if a card was removed, false otherwise.
-function remove_card_from_line(line, iid)
+function remove_card_from_line(line, inventory_item_id)
     if line == nil then return false end
     for i, card in ipairs(line) do
-        if card.inventory_item_id == iid then
+        if card.inventory_item_id == inventory_item_id then
             table.remove(line, i)
             return true
         end
