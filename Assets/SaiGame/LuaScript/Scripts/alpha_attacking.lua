@@ -1,4 +1,5 @@
 require "lib_battle_common"
+require "lib_card_ability"
 
 -- alpha_attacking.lua
 -- Applies attacker's base_atk as damage onto the defender card in the battle state.
@@ -107,33 +108,46 @@ local defender_def = find_item_def(state.item_defs, def_code)
 if attacker_def == nil then output.error = "item def not found in state.item_defs: " .. atk_code ; return end
 if defender_def == nil then output.error = "item def not found in state.item_defs: " .. def_code ; return end
 
-local base_atk  = (attacker_def.base_stats and attacker_def.base_stats.atk) or 0
-local base_def  = (defender_def.base_stats and defender_def.base_stats.def) or 0
-local final_def = base_def  -- buffs will be added here later
-
-base_atk = 1 --To debug
-
 -- ---------------------------------------------------------------------------
--- Accumulate damage on the defender card object inside the state
+-- Execute normal attack
 -- ---------------------------------------------------------------------------
-local prev_damage = defender_card.total_damage_received or 0
-defender_card.total_damage_received = prev_damage + base_atk
-defender_card.final_def             = final_def
+local base_atk     = (attacker_def.base_stats and attacker_def.base_stats.atk) or 0
+local damage_dealt = base_atk
+damage_dealt = 10  -- To debug
+
+local _, dmg_err = lib_card_ability.deal_damage_to_character(
+    state, defender_card, damage_dealt, state[defender_line_key], defender_side_void
+)
+if dmg_err ~= nil then output.error = dmg_err ; return end
 
 local total_damage = defender_card.total_damage_received
-local defeated     = total_damage > final_def
 
--- attacker_card.card_action = "attacking"
--- defender_card.card_action = defeated and "sent_to_void" or "damaged"
+-- Trigger attacker ability after damage is resolved.
+local atk_event_data = {}
+atk_event_data.defender_card      = defender_card
+atk_event_data.damage_dealt       = damage_dealt
+atk_event_data.attacker_def       = attacker_def
+atk_event_data.defender_def       = defender_def
+atk_event_data.defender_line_key  = defender_line_key
+atk_event_data.defender_side_void = defender_side_void
+local atk_ability_actions, atk_ability_err = lib_card_ability.trigger_card_ability(
+    state, attacker_card, "on_attack", atk_event_data
+)
+if atk_ability_err ~= nil then output.error = atk_ability_err ; return end
 
--- ---------------------------------------------------------------------------
--- If defeated → remove from its line and move to the correct void
--- ---------------------------------------------------------------------------
-if defeated then
-    lib_battle_common.remove_card_from_line(state[defender_line_key], payload.defender_inventory_item_id)
-    if state[defender_side_void] == nil then state[defender_side_void] = {} end
-    table.insert(state[defender_side_void], defender_card)
-end
+-- Trigger defender ability after attacker ability.
+local def_event_data = {}
+def_event_data.attacker_card   = attacker_card
+def_event_data.damage_received = damage_dealt
+def_event_data.attacker_def    = attacker_def
+def_event_data.defender_def    = defender_def
+local def_ability_actions, def_ability_err = lib_card_ability.trigger_card_ability(
+    state, defender_card, "on_damaged", def_event_data
+)
+if def_ability_err ~= nil then output.error = def_ability_err ; return end
+
+-- Determine defeated only after all abilities have resolved.
+local defeated = total_damage > defender_card.final_def
 
 -- ---------------------------------------------------------------------------
 -- Client actions
@@ -146,6 +160,8 @@ if defeated then
 else
     table.insert(state.client_actions, defender_side .. "_card_damaged:" .. payload.defender_inventory_item_id .. "," .. total_damage)
 end
+for _, action in ipairs(atk_ability_actions) do table.insert(state.client_actions, action) end
+for _, action in ipairs(def_ability_actions) do table.insert(state.client_actions, action) end
 
 -- ---------------------------------------------------------------------------
 -- Save updated state
