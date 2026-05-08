@@ -181,6 +181,7 @@ alpha_draw = function(state)
     for i, card in ipairs(hand) do
         if card.item_definition_code_name ~= nil and card.item_definition_code_name ~= "" then
             card.slot_index = i - 1
+            card.trigger    = false
         end
     end
 
@@ -253,6 +254,7 @@ omega_draw = function(state)
     for i, card in ipairs(hand) do
         if card.item_definition_code_name ~= nil and card.item_definition_code_name ~= "" then
             card.slot_index = i - 1
+            card.trigger    = false
         end
     end
 

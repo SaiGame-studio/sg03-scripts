@@ -73,6 +73,11 @@ if attacker_card == nil then
     return
 end
 
+if attacker_card.trigger == true then
+    output.error = "attacker card has already attacked this turn"
+    return
+end
+
 if defender_card == nil then
     output.error = "defender card not found in any battle line"
     return
@@ -119,6 +124,8 @@ local dmg_actions, dmg_err = lib_card_ability.deal_damage_to_character(
     state, attacker_card, defender_card, damage_dealt, state[defender_line_key], defender_side_void
 )
 if dmg_err ~= nil then output.error = dmg_err ; return end
+
+attacker_card.trigger = true
 
 -- Trigger attacker ability after damage is resolved.
 local atk_event_data = {}
