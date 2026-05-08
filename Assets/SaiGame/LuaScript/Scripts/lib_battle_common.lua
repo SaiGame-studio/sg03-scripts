@@ -78,12 +78,14 @@ function battle_status()
     output.alpha_hp               = state.alpha_hp
     output.alpha_the_source       = state.alpha_the_source
     output.alpha_the_source_count = state.alpha_the_source ~= nil and #state.alpha_the_source or 0
+    output.alpha_the_void         = state.alpha_the_void
     output.alpha_the_void_count   = state.alpha_the_void ~= nil and #state.alpha_the_void or 0
     output.alpha_hand             = state.alpha_hand
     output.alpha_front_line       = state.alpha_front_line
     output.alpha_back_line        = state.alpha_back_line
     output.omega_hp               = state.omega_hp
     output.omega_the_source_count = state.omega_the_source ~= nil and #state.omega_the_source or 0
+    output.omega_the_void         = state.omega_the_void
     output.omega_the_void_count   = state.omega_the_void ~= nil and #state.omega_the_void or 0
     output.omega_front_line       = state.omega_front_line
     output.omega_back_line        = state.omega_back_line
