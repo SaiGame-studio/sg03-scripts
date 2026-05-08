@@ -32,6 +32,15 @@ function remove_card_from_line(line, inventory_item_id)
     return false
 end
 
+-- ─── dlog ────────────────────────────────────────────────────────────────────
+-- Appends msg to output.debug_log only when ctx.game.status == "development".
+-- Safe to call unconditionally; no-ops in production.
+function dlog(msg)
+    if ctx.game == nil or ctx.game.status ~= "development" then return end
+    if output.debug_log == nil then output.debug_log = {} end
+    table.insert(output.debug_log, msg)
+end
+
 -- ─── battle_status ───────────────────────────────────────────────────────────
 -- Reads the current battle session and writes its full state into output.
 

@@ -180,8 +180,9 @@ alpha_draw = function(state)
     -- Update slot_index to match position in hand (0-based)
     for i, card in ipairs(hand) do
         if card.item_definition_code_name ~= nil and card.item_definition_code_name ~= "" then
-            card.slot_index = i - 1
-            card.trigger    = false
+            card.slot_index   = i - 1
+            card.trigger      = false
+            card.stun_remain  = 0
         end
     end
 
@@ -253,8 +254,9 @@ omega_draw = function(state)
     -- Update slot_index to match position in hand (0-based)
     for i, card in ipairs(hand) do
         if card.item_definition_code_name ~= nil and card.item_definition_code_name ~= "" then
-            card.slot_index = i - 1
-            card.trigger    = false
+            card.slot_index   = i - 1
+            card.trigger      = false
+            card.stun_remain  = 0
         end
     end
 
