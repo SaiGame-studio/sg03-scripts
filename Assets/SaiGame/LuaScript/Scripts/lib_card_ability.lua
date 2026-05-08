@@ -255,6 +255,7 @@ end
 -- Calls the handler for one ability key only if its registered event matches trigger_event.
 -- Returns: extra_client_actions (table), err (string or nil)
 local function _dispatch_one_ability(state, source_card, key, trigger_event, event_data)
+    lib_battle_common.dlog("-- [ability] _dispatch_one_ability ----------------------")
     local ability_def = _known_abilities[key]
     if ability_def == nil then
         lib_battle_common.dlog("[ability] dispatch: key=" .. tostring(key) .. " UNKNOWN - not registered in _known_abilities")
@@ -280,6 +281,7 @@ end
 -- Stops and returns the first error encountered.
 -- Returns: extra_client_actions (table), err (string or nil)
 function trigger_card_ability(state, source_card, trigger_event, event_data)
+    lib_battle_common.dlog("-- [ability] trigger_card_ability ----------------------")
     local keys = _get_ability_keys(source_card, state.item_defs)
     if #keys == 0 then
         return {}, nil

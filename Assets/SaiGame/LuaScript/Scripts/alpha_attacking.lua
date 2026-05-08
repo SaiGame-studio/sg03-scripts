@@ -57,11 +57,12 @@ local named_lines = {
     { line = state.omega_back_line  or {}, line_key = "omega_back_line",  side_void = "omega_the_void" },
 }
 
-local attacker_card, defender_card, defender_line_key, defender_side_void
+local attacker_card, attacker_line_key, defender_card, defender_line_key, defender_side_void
 for _, entry in ipairs(named_lines) do
     for _, card in ipairs(entry.line) do
         if card.inventory_item_id == payload.attacker_inventory_item_id then
-            attacker_card = card
+            attacker_card     = card
+            attacker_line_key = entry.line_key
         end
         if card.inventory_item_id == payload.defender_inventory_item_id then
             defender_card      = card
@@ -193,6 +194,23 @@ table.insert(state.client_actions, "alpha_attack:" .. payload.attacker_inventory
 for _, action in ipairs(dmg_actions) do table.insert(state.client_actions, action) end
 for _, action in ipairs(atk_ability_actions) do table.insert(state.client_actions, action) end
 for _, action in ipairs(def_ability_actions) do table.insert(state.client_actions, action) end
+
+-- If the attacker is an ability-type card, send it to the void after resolving.
+if attacker_def.metadata ~= nil and attacker_def.metadata.type == "ability" then
+    local attacker_line = state[attacker_line_key]
+    if attacker_line ~= nil then
+        for i, slot_card in ipairs(attacker_line) do
+            if slot_card.inventory_item_id == attacker_card.inventory_item_id then
+                table.remove(attacker_line, i)
+                break
+            end
+        end
+    end
+    if state.alpha_the_void == nil then state.alpha_the_void = {} end
+    table.insert(state.alpha_the_void, attacker_card)
+    table.insert(state.client_actions, "alpha_card_sent_to_void:" .. attacker_card.inventory_item_id)
+    lib_battle_common.dlog("attacker is ability-type, sent to alpha_the_void: " .. attacker_card.inventory_item_id)
+end
 
 -- ---------------------------------------------------------------------------
 -- Save updated state
