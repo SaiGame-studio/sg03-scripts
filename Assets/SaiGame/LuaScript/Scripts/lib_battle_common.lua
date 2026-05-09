@@ -32,6 +32,29 @@ function remove_card_from_line(line, inventory_item_id)
     return false
 end
 
+-- ─── reset_turn_cards ───────────────────────────────────────────────────────
+-- Resets per-turn state on every card in all four battle lines.
+--   trigger              → false
+--   final_def            → 0
+--   total_damage_received → 0
+function reset_turn_cards(state)
+    local lines = {
+        state.alpha_front_line or {},
+        state.alpha_back_line  or {},
+        state.omega_front_line or {},
+        state.omega_back_line  or {},
+    }
+    for _, line in ipairs(lines) do
+        for _, card in ipairs(line) do
+            if card.item_definition_code_name ~= nil and card.item_definition_code_name ~= "" then
+                card.trigger               = false
+                card.final_def             = 0
+                card.total_damage_received = 0
+            end
+        end
+    end
+end
+
 -- ─── dlog ────────────────────────────────────────────────────────────────────
 -- Appends msg to output.debug_log only when ctx.game.status == "development".
 -- Safe to call unconditionally; no-ops in production.
@@ -87,6 +110,16 @@ function battle_status()
     output.omega_the_source_count = state.omega_the_source ~= nil and #state.omega_the_source or 0
     output.omega_the_void         = state.omega_the_void
     output.omega_the_void_count   = state.omega_the_void ~= nil and #state.omega_the_void or 0
+    -- Hide item identity for omega cards that are not revealed.
+    local omega_battle_lines = { state.omega_front_line or {}, state.omega_back_line or {} }
+    for _, omega_line in ipairs(omega_battle_lines) do
+        for _, omega_card in ipairs(omega_line) do
+            if omega_card.face_up == false or omega_card.expose == false then
+                omega_card.item_definition_code_name = nil
+            end
+        end
+    end
+
     output.omega_front_line       = state.omega_front_line
     output.omega_back_line        = state.omega_back_line
     output.item_defs              = is_development and state.item_defs or nil
