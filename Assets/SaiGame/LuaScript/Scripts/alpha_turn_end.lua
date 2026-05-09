@@ -39,6 +39,10 @@ local function main()
     state.omega_front_line = o_front
     state.omega_back_line  = o_back
     state.omega_hand       = o_hand
+    
+    -- ── Omega attack planning ─────────────────────────────────────────────────
+    local attack_plan_err = lib_battle_ai.omega_try_to_attack(state)
+    if attack_plan_err ~= nil then output.error = attack_plan_err ; return end
 
     -- ── Advance turn ──────────────────────────────────────────────────────
     if state.metadata == nil then state.metadata = {} end
