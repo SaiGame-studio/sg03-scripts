@@ -25,6 +25,7 @@ local function main()
     -- ── Advance turn ──────────────────────────────────────────────────────
     if state.metadata == nil then state.metadata = {} end
     state.metadata.next_move = "omega_turn"
+    state.turn = (state.turn or 0) + 1
 
     -- ── Persist ───────────────────────────────────────────────────────────
     local save_err = game.battle_session_update(session_id, state)
