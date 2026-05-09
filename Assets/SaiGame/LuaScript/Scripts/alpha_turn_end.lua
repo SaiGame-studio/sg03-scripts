@@ -32,6 +32,14 @@ local function main()
     if omega_draw_err ~= nil then output.error = omega_draw_err ; return end
     state.omega_hand = omega_new_hand
 
+    -- ── Omega AI deploy ───────────────────────────────────────────────────
+    local ai_difficulty = state.metadata ~= nil and state.metadata.battle_difficulty or "normal"
+    local o_front, o_back, o_hand, ai_err = lib_battle_ai.deploy_omega_cards(state, ai_difficulty)
+    if ai_err ~= nil then output.error = ai_err ; return end
+    state.omega_front_line = o_front
+    state.omega_back_line  = o_back
+    state.omega_hand       = o_hand
+
     -- ── Advance turn ──────────────────────────────────────────────────────
     if state.metadata == nil then state.metadata = {} end
     state.metadata.next_move = "omega_turn"

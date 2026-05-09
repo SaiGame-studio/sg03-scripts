@@ -39,13 +39,13 @@ end
 function _split_cards_by_type(cards, item_defs)
     local characters = {}
     local others     = {}
-    for _, card in ipairs(cards) do
-        local def   = _find_item_def(item_defs, card.item_definition_code_name)
-        local ctype = def ~= nil and def.metadata ~= nil and def.metadata.type or nil
-        if ctype == "character" then
-            table.insert(characters, card)
+    for _, checked_card in ipairs(cards) do
+        local item_def  = _find_item_def(item_defs, checked_card.item_definition_code_name)
+        local card_type = item_def ~= nil and item_def.metadata ~= nil and item_def.metadata.type or nil
+        if card_type == "character" then
+            table.insert(characters, checked_card)
         else
-            table.insert(others, card)
+            table.insert(others, checked_card)
         end
     end
     return characters, others
@@ -95,57 +95,207 @@ function _rebuild_hand(original_hand, deployed_ids)
 end
 
 -- ── Easy ─────────────────────────────────────────────────────────────────────
--- Cautious: 1 character in front, nothing in back.
+-- Cautious:
+--   Front line: deploy 1 character (face random) only if no character is already there.
+--   Back line : deploy 1 non-character (face random) into the first empty slot,
+--               but only if the back line currently has fewer than 2 cards.
 
 function _deploy_easy(state)
     lib_battle_common.dlog("[lib_battle_ai] == _deploy_easy ==")
-    local cards = _collect_cards(state.omega_hand)
-    if #cards == 0 then
-        return nil, nil, nil, "omega_hand is empty"
+
+    local front_line = state.omega_front_line or {}
+    local back_line  = state.omega_back_line  or {}
+
+    -- Count characters already on the front line.
+    local front_char_count = 0
+    for _, slot_card in ipairs(front_line) do
+        if slot_card.item_definition_code_name ~= nil and slot_card.item_definition_code_name ~= "" then
+            local slot_item_def  = _find_item_def(state.item_defs, slot_card.item_definition_code_name)
+            local slot_card_type = slot_item_def ~= nil and slot_item_def.metadata ~= nil and slot_item_def.metadata.type or nil
+            if slot_card_type == "character" then
+                front_char_count = front_char_count + 1
+            end
+        end
+    end
+    lib_battle_common.dlog("[lib_battle_ai] _deploy_easy: front_char_count = " .. tostring(front_char_count))
+
+    local hand_cards = _collect_cards(state.omega_hand)
+    local characters, others = _split_cards_by_type(hand_cards, state.item_defs)
+    lib_battle_common.dlog("[lib_battle_ai] _deploy_easy: hand characters = " .. tostring(#characters) .. ", others = " .. tostring(#others))
+
+    math.randomseed(ctx.timestamp)
+    local front_face_up = math.random(0, 1) == 1
+
+    local deployed_ids   = {}
+    local front_deployed  = {}
+    local back_deployed   = {}
+
+    -- Deploy 1 character into the first empty front slot if none on field yet.
+    if front_char_count == 0 and #characters >= 1 then
+        local deploy_card = characters[1]
+        for slot_i = 1, SLOT_COUNT do
+            local existing = front_line[slot_i]
+            if existing == nil or existing.item_definition_code_name == nil or existing.item_definition_code_name == "" then
+                deploy_card.slot_index = slot_i - 1
+                deploy_card.face_up    = front_face_up
+                deploy_card.expose     = front_face_up
+                front_line[slot_i]     = deploy_card
+                table.insert(deployed_ids, deploy_card.id)
+                table.insert(front_deployed, deploy_card)
+                lib_battle_common.dlog("[lib_battle_ai] _deploy_easy: front[" .. slot_i .. "] = " .. tostring(deploy_card.item_definition_code_name) .. ", face_up = " .. tostring(front_face_up))
+                break
+            end
+        end
     end
 
-    local characters, others = _split_cards_by_type(cards, state.item_defs)
+    -- Add 1 non-character into the first empty back slot, only if back line has fewer than 2 cards.
+    local back_card_count = 0
+    for _, back_slot in ipairs(back_line) do
+        if back_slot.item_definition_code_name ~= nil and back_slot.item_definition_code_name ~= "" then
+            back_card_count = back_card_count + 1
+        end
+    end
+    lib_battle_common.dlog("[lib_battle_ai] _deploy_easy: back_card_count = " .. tostring(back_card_count))
 
-    local front_cards = {}
-    local back_cards  = {}
-    -- game rule: max 1 character per deploy
-    if #characters >= 1 then table.insert(front_cards, characters[1]) end
+    if back_card_count < 2 and #others >= 1 then
+        local deploy_card  = others[1]
+        local back_face_up = math.random(0, 1) == 1
+        for slot_i = 1, SLOT_COUNT do
+            local existing = back_line[slot_i]
+            if existing == nil or existing.item_definition_code_name == nil or existing.item_definition_code_name == "" then
+                deploy_card.slot_index = slot_i - 1
+                deploy_card.face_up    = back_face_up
+                deploy_card.expose     = back_face_up
+                back_line[slot_i]      = deploy_card
+                table.insert(deployed_ids, deploy_card.id)
+                table.insert(back_deployed, deploy_card)
+                lib_battle_common.dlog("[lib_battle_ai] _deploy_easy: back[" .. slot_i .. "] = " .. tostring(deploy_card.item_definition_code_name) .. ", face_up = " .. tostring(back_face_up))
+                break
+            end
+        end
+    end
 
-    local deployed_ids = {}
-    for _, c in ipairs(front_cards) do table.insert(deployed_ids, c.id) end
+    local hand = _rebuild_hand(state.omega_hand, deployed_ids)
+    lib_battle_common.dlog("[lib_battle_ai] _deploy_easy: deployed " .. tostring(#deployed_ids) .. " card(s)")
 
-    local front = _build_line(front_cards, true, "in_front_line")
-    local back  = _build_line(back_cards,  true, "in_back_line")
-    local hand  = _rebuild_hand(state.omega_hand, deployed_ids)
-    return front, back, hand, nil
+    if state.client_actions == nil then state.client_actions = {} end
+    for _, front_card in ipairs(front_deployed) do
+        if front_card.inventory_item_id ~= nil and front_card.inventory_item_id ~= "" then
+            table.insert(state.client_actions, "omega_hand_to_front_line:" .. front_card.inventory_item_id .. "," .. (front_card.slot_index or 0))
+        end
+    end
+    for _, back_card in ipairs(back_deployed) do
+        if back_card.inventory_item_id ~= nil and back_card.inventory_item_id ~= "" then
+            table.insert(state.client_actions, "omega_hand_to_back_line:" .. back_card.inventory_item_id .. "," .. (back_card.slot_index or 0))
+        end
+    end
+
+    return front_line, back_line, hand, nil
 end
 
 -- ── Normal ───────────────────────────────────────────────────────────────────
--- Balanced: 1 character in front (face-up), up to 1 non-character in back (face-down).
+-- Balanced:
+--   Front line: deploy 1 character (face random) if fewer than 2 characters are already there.
+--   Back line : deploy up to 2 non-characters (face random) into the first empty slots,
+--               but only if the back line currently has fewer than 3 cards.
 
 function _deploy_normal(state)
     lib_battle_common.dlog("[lib_battle_ai] == _deploy_normal ==")
-    local cards = _collect_cards(state.omega_hand)
-    if #cards == 0 then
-        return nil, nil, nil, "omega_hand is empty"
+
+    local front_line = state.omega_front_line or {}
+    local back_line  = state.omega_back_line  or {}
+
+    -- Count characters already on the front line.
+    local front_char_count = 0
+    for _, slot_card in ipairs(front_line) do
+        if slot_card.item_definition_code_name ~= nil and slot_card.item_definition_code_name ~= "" then
+            local slot_item_def  = _find_item_def(state.item_defs, slot_card.item_definition_code_name)
+            local slot_card_type = slot_item_def ~= nil and slot_item_def.metadata ~= nil and slot_item_def.metadata.type or nil
+            if slot_card_type == "character" then
+                front_char_count = front_char_count + 1
+            end
+        end
+    end
+    lib_battle_common.dlog("[lib_battle_ai] _deploy_normal: front_char_count = " .. tostring(front_char_count))
+
+    local hand_cards = _collect_cards(state.omega_hand)
+    local characters, others = _split_cards_by_type(hand_cards, state.item_defs)
+    lib_battle_common.dlog("[lib_battle_ai] _deploy_normal: hand characters = " .. tostring(#characters) .. ", others = " .. tostring(#others))
+
+    math.randomseed(ctx.timestamp)
+    local front_face_up = math.random(0, 1) == 1
+
+    local deployed_ids   = {}
+    local front_deployed  = {}
+    local back_deployed   = {}
+
+    -- Deploy 1 character into the first empty front slot if fewer than 2 on field.
+    if front_char_count < 2 and #characters >= 1 then
+        local deploy_card = characters[1]
+        for slot_i = 1, SLOT_COUNT do
+            local existing = front_line[slot_i]
+            if existing == nil or existing.item_definition_code_name == nil or existing.item_definition_code_name == "" then
+                deploy_card.slot_index = slot_i - 1
+                deploy_card.face_up    = front_face_up
+                deploy_card.expose     = front_face_up
+                front_line[slot_i]     = deploy_card
+                table.insert(deployed_ids, deploy_card.id)
+                table.insert(front_deployed, deploy_card)
+                lib_battle_common.dlog("[lib_battle_ai] _deploy_normal: front[" .. slot_i .. "] = " .. tostring(deploy_card.item_definition_code_name) .. ", face_up = " .. tostring(front_face_up))
+                break
+            end
+        end
     end
 
-    local characters, others = _split_cards_by_type(cards, state.item_defs)
+    -- Add up to 2 non-characters into the first empty back slots (face random), only if back line has fewer than 3 cards.
+    local back_card_count = 0
+    for _, back_slot in ipairs(back_line) do
+        if back_slot.item_definition_code_name ~= nil and back_slot.item_definition_code_name ~= "" then
+            back_card_count = back_card_count + 1
+        end
+    end
+    lib_battle_common.dlog("[lib_battle_ai] _deploy_normal: back_card_count = " .. tostring(back_card_count))
 
-    local front_cards = {}
-    local back_cards  = {}
-    -- game rule: max 1 character per deploy
-    if #characters >= 1 then table.insert(front_cards, characters[1]) end
-    if #others >= 1 then table.insert(back_cards, others[1]) end
+    if back_card_count < 3 then
+        local back_deployed_count = 0
+        local other_index         = 1
+        while back_deployed_count < 2 and other_index <= #others do
+            local deploy_card  = others[other_index]
+            local back_face_up = math.random(0, 1) == 1
+            for slot_i = 1, SLOT_COUNT do
+                local existing = back_line[slot_i]
+                if existing == nil or existing.item_definition_code_name == nil or existing.item_definition_code_name == "" then
+                    deploy_card.slot_index = slot_i - 1
+                    deploy_card.face_up    = back_face_up
+                    deploy_card.expose     = back_face_up
+                    back_line[slot_i]      = deploy_card
+                    table.insert(deployed_ids, deploy_card.id)
+                    table.insert(back_deployed, deploy_card)
+                    lib_battle_common.dlog("[lib_battle_ai] _deploy_normal: back[" .. slot_i .. "] = " .. tostring(deploy_card.item_definition_code_name) .. ", face_up = " .. tostring(back_face_up))
+                    back_deployed_count = back_deployed_count + 1
+                    break
+                end
+            end
+            other_index = other_index + 1
+        end
+    end
 
-    local deployed_ids = {}
-    for _, c in ipairs(front_cards) do table.insert(deployed_ids, c.id) end
-    for _, c in ipairs(back_cards)  do table.insert(deployed_ids, c.id) end
+    local hand = _rebuild_hand(state.omega_hand, deployed_ids)
+    lib_battle_common.dlog("[lib_battle_ai] _deploy_normal: deployed " .. tostring(#deployed_ids) .. " new card(s)")
 
-    local front = _build_line(front_cards, true,  "in_front_line")
-    local back  = _build_line(back_cards,  false, "in_back_line")
-    local hand  = _rebuild_hand(state.omega_hand, deployed_ids)
-    return front, back, hand, nil
+    if state.client_actions == nil then state.client_actions = {} end
+    for _, front_card in ipairs(front_deployed) do
+        if front_card.inventory_item_id ~= nil and front_card.inventory_item_id ~= "" then
+            table.insert(state.client_actions, "omega_hand_to_front_line:" .. front_card.inventory_item_id .. "," .. (front_card.slot_index or 0))
+        end
+    end
+    for _, back_card in ipairs(back_deployed) do
+        if back_card.inventory_item_id ~= nil and back_card.inventory_item_id ~= "" then
+            table.insert(state.client_actions, "omega_hand_to_back_line:" .. back_card.inventory_item_id .. "," .. (back_card.slot_index or 0))
+        end
+    end
+
+    return front_line, back_line, hand, nil
 end
 
 -- ── Hard ─────────────────────────────────────────────────────────────────────
@@ -162,17 +312,31 @@ function _deploy_hard(state)
 
     local front_cards = {}
     local back_cards  = {}
-    -- game rule: max 1 character per deploy
+    -- max 1 character per deploy
     if #characters >= 1 then table.insert(front_cards, characters[1]) end
     for i = 1, math.min(2, #others) do table.insert(back_cards, others[i]) end
 
     local deployed_ids = {}
-    for _, c in ipairs(front_cards) do table.insert(deployed_ids, c.id) end
-    for _, c in ipairs(back_cards)  do table.insert(deployed_ids, c.id) end
+    for _, deploy_card in ipairs(front_cards) do table.insert(deployed_ids, deploy_card.id) end
+    for _, deploy_card in ipairs(back_cards)  do table.insert(deployed_ids, deploy_card.id) end
 
     local front = _build_line(front_cards, false, "in_front_line")
     local back  = _build_line(back_cards,  false, "in_back_line")
     local hand  = _rebuild_hand(state.omega_hand, deployed_ids)
+    lib_battle_common.dlog("[lib_battle_ai] _deploy_hard: deployed " .. tostring(#deployed_ids) .. " new card(s)")
+
+    if state.client_actions == nil then state.client_actions = {} end
+    for _, front_card in ipairs(front_cards) do
+        if front_card.inventory_item_id ~= nil and front_card.inventory_item_id ~= "" then
+            table.insert(state.client_actions, "omega_hand_to_front_line:" .. front_card.inventory_item_id .. "," .. (front_card.slot_index or 0))
+        end
+    end
+    for _, back_card in ipairs(back_cards) do
+        if back_card.inventory_item_id ~= nil and back_card.inventory_item_id ~= "" then
+            table.insert(state.client_actions, "omega_hand_to_back_line:" .. back_card.inventory_item_id .. "," .. (back_card.slot_index or 0))
+        end
+    end
+
     return front, back, hand, nil
 end
 
@@ -345,6 +509,7 @@ function omega_draw(state, card_count)
 
     local hand = {}
     for _, slot in ipairs(code_names) do
+        if #hand >= card_count then break end
         local omega_card = _find_and_remove_by_code(source, slot.code)
         if omega_card == nil then
             return nil, "omega preset " .. slot.key .. " (" .. slot.code .. ") not found in omega_the_source"
