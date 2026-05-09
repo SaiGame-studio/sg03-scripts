@@ -98,6 +98,7 @@ end
 -- Cautious: 1 character in front, nothing in back.
 
 function _deploy_easy(state)
+    lib_battle_common.dlog("[lib_battle_ai] == _deploy_easy ==")
     local cards = _collect_cards(state.omega_hand)
     if #cards == 0 then
         return nil, nil, nil, "omega_hand is empty"
@@ -123,6 +124,7 @@ end
 -- Balanced: 1 character in front (face-up), up to 1 non-character in back (face-down).
 
 function _deploy_normal(state)
+    lib_battle_common.dlog("[lib_battle_ai] == _deploy_normal ==")
     local cards = _collect_cards(state.omega_hand)
     if #cards == 0 then
         return nil, nil, nil, "omega_hand is empty"
@@ -150,6 +152,7 @@ end
 -- Aggressive: 1 character in front (face-down), up to 2 non-characters in back (face-down).
 
 function _deploy_hard(state)
+    lib_battle_common.dlog("[lib_battle_ai] == _deploy_hard ==")
     local cards = _collect_cards(state.omega_hand)
     if #cards == 0 then
         return nil, nil, nil, "omega_hand is empty"
@@ -179,6 +182,7 @@ end
 -- Returns: omega_front_line, omega_back_line, omega_hand, err
 
 function deploy_omega_cards(state, difficulty)
+    lib_battle_common.dlog("[lib_battle_ai] == deploy_omega_cards == difficulty: " .. tostring(difficulty))
     if type(state) ~= "table" then
         return nil, nil, nil, "deploy_omega_cards: state must be a table"
     end
@@ -237,6 +241,7 @@ end
 -- Returns: hand, err
 
 function alpha_draw(state, card_count)
+    lib_battle_common.dlog("[lib_battle_ai] == alpha_draw == card_count: " .. tostring(card_count))
     local preset = state.alpha_preset_metadata
     if preset == nil then
         return nil, "alpha_preset_metadata not found in session state"
@@ -291,6 +296,14 @@ function alpha_draw(state, card_count)
         end
     end
 
+    if state.client_actions == nil then state.client_actions = {} end
+    for _, hand_card in ipairs(hand) do
+        if hand_card.inventory_item_id ~= nil and hand_card.inventory_item_id ~= "" then
+            table.insert(state.client_actions, "alpha_source_to_hand:" .. hand_card.inventory_item_id .. "," .. (hand_card.slot_index or 0))
+        end
+    end
+    lib_battle_common.dlog("[lib_battle_ai] alpha_draw client_actions added: " .. tostring(#hand) .. " cards")
+
     return hand, nil
 end
 
@@ -301,6 +314,7 @@ end
 -- Returns: hand, err
 
 function omega_draw(state, card_count)
+    lib_battle_common.dlog("[lib_battle_ai] == omega_draw == card_count: " .. tostring(card_count))
     if state.metadata == nil or state.metadata.omega == nil then
         return nil, "metadata.omega not found in session state"
     end
@@ -359,6 +373,14 @@ function omega_draw(state, card_count)
             hand_card.stun_remain = 0
         end
     end
+
+    if state.client_actions == nil then state.client_actions = {} end
+    for _, hand_card in ipairs(hand) do
+        if hand_card.inventory_item_id ~= nil and hand_card.inventory_item_id ~= "" then
+            table.insert(state.client_actions, "omega_source_to_hand:" .. hand_card.inventory_item_id .. "," .. (hand_card.slot_index or 0))
+        end
+    end
+    lib_battle_common.dlog("[lib_battle_ai] omega_draw client_actions added: " .. tostring(#hand) .. " cards")
 
     return hand, nil
 end

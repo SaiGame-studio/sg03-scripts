@@ -7,6 +7,7 @@
 -- Returns true if the card's item definition metadata.type matches card_type.
 -- Looks up the definition from item_defs using card.item_definition_code_name.
 function check_card_type(item_defs, card, card_type)
+    lib_battle_common.dlog("== check_card_type ==")
     if card == nil then return false end
     if item_defs == nil then return false end
     local code = card.item_definition_code_name
@@ -22,6 +23,7 @@ end
 -- Removes the first card with matching inventory_item_id from a line array.
 -- Returns true if a card was removed, false otherwise.
 function remove_card_from_line(line, inventory_item_id)
+    lib_battle_common.dlog("== remove_card_from_line ==")
     if line == nil then return false end
     for i, card in ipairs(line) do
         if card.inventory_item_id == inventory_item_id then
@@ -38,6 +40,8 @@ end
 --   final_def            → 0
 --   total_damage_received → 0
 function reset_turn_cards(state)
+    lib_battle_common.dlog("== reset_turn_cards done ==")
+
     local lines = {
         state.alpha_front_line or {},
         state.alpha_back_line  or {},
@@ -55,6 +59,13 @@ function reset_turn_cards(state)
     end
 end
 
+-- ─── get_draw_card_count ────────────────────────────────────────────────────
+-- Returns the number of cards a player draws at the start of their turn.
+function get_draw_card_count()
+    lib_battle_common.dlog("== get_draw_card_count ==")
+    return 2
+end
+
 -- ─── dlog ────────────────────────────────────────────────────────────────────
 -- Appends msg to output.debug_log only when ctx.game.status == "development".
 -- Safe to call unconditionally; no-ops in production.
@@ -68,6 +79,7 @@ end
 -- Reads the current battle session and writes its full state into output.
 
 function battle_status()
+    lib_battle_common.dlog("== battle_status ==")
     local session_id, id_err = game.battle_session_current_id()
     if id_err ~= nil then
         output.error = id_err; return
