@@ -150,6 +150,16 @@ local function main()
     state.omega_back_line  = o_back
     state.omega_hand       = o_hand
 
+    -- Clear totem_pulse for any omega card that is not face-up (hidden cards).
+    local omega_lines = { o_front, o_back }
+    for _, omega_line in ipairs(omega_lines) do
+        for _, omega_card in ipairs(omega_line) do
+            if omega_card.face_up == false or omega_card.expose == false then
+                omega_card.totem_pulse = nil
+            end
+        end
+    end
+
     if state.client_actions == nil then state.client_actions = {} end
     for _, card in ipairs(front_line) do
         if card.inventory_item_id ~= nil and card.inventory_item_id ~= "" then

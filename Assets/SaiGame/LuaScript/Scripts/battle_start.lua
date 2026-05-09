@@ -38,6 +38,7 @@ local load_enemy_the_source  -- forward declaration
 local function main()
     local err = validate_payload()
     if err ~= nil then output.error = err ; return end
+    lib_battle_common.dlog("[battle_start] payload validated")
 
     local existing_id = game.battle_session_current_id()
     if existing_id ~= nil and existing_id ~= "" then
@@ -48,24 +49,31 @@ local function main()
 
     local enemy, fetch_err = resolve_enemy()
     if fetch_err ~= nil then output.error = fetch_err ; return end
+    lib_battle_common.dlog("[battle_start] enemy resolved: " .. tostring(payload.enemy_entity_key))
 
     local check_err = check_enemy(enemy)
     if check_err ~= nil then output.error = check_err ; return end
+    lib_battle_common.dlog("[battle_start] enemy deck check passed")
 
     local preset, preset_err = verify_player_preset(payload.preset_instance_id)
     if preset_err ~= nil then output.error = preset_err ; return end
+    lib_battle_common.dlog("[battle_start] player preset verified")
 
     local player_the_source, player_src_err = load_player_the_source(payload.preset_instance_id)
     if player_src_err ~= nil then output.error = player_src_err ; return end
+    lib_battle_common.dlog("[battle_start] player source loaded: " .. tostring(#player_the_source) .. " cards")
 
     local enemy_the_source = load_enemy_the_source(enemy)
+    lib_battle_common.dlog("[battle_start] enemy source loaded: " .. tostring(#enemy_the_source) .. " cards")
 
     local selected_mode = resolve_mode(enemy)
+    lib_battle_common.dlog("[battle_start] battle mode: " .. tostring(selected_mode))
 
     local state = build_state(enemy, selected_mode, player_the_source, enemy_the_source, preset)
 
     local session_id, create_err = game.battle_session_create(state)
     if create_err ~= nil then output.error = create_err ; return end
+    lib_battle_common.dlog("[battle_start] session created: " .. tostring(session_id))
 
     lib_battle_common.battle_status()
 end
