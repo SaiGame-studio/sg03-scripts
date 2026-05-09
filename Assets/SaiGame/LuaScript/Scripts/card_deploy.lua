@@ -143,8 +143,9 @@ local function main()
     state.alpha_front_line = front_line
     state.alpha_back_line  = back_line
 
-    -- Omega AI deploy cards
-    local o_front, o_back, o_hand, ai_err = lib_battle_ai.deploy_omega_cards(state, "normal")
+    -- Omega AI deploy cards — difficulty comes from battle session metadata (default "normal")
+    local ai_difficulty = state.metadata ~= nil and state.metadata.battle_difficulty or "normal"
+    local o_front, o_back, o_hand, ai_err = lib_battle_ai.deploy_omega_cards(state, ai_difficulty)
     if ai_err ~= nil then output.error = ai_err ; return end
     state.omega_front_line = o_front
     state.omega_back_line  = o_back
