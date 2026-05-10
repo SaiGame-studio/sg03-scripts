@@ -82,6 +82,22 @@ function dlog(msg)
     table.insert(output.debug_log, msg)
 end
 
+-- ─── hide_unrevealed_omega_cards ─────────────────────────────────────────────
+-- Strips sensitive fields from omega cards that are not yet revealed to alpha.
+-- Clears item_definition_code_name and final_def for any card where
+-- face_up == false or expose == false.
+function hide_unrevealed_omega_cards(state)
+    local omega_battle_lines = { state.omega_front_line or {}, state.omega_back_line or {} }
+    for _, omega_line in ipairs(omega_battle_lines) do
+        for _, omega_card in ipairs(omega_line) do
+            if omega_card.face_up == false or omega_card.expose == false then
+                omega_card.item_definition_code_name = nil
+                omega_card.final_def                 = nil
+            end
+        end
+    end
+end
+
 -- ─── battle_status ───────────────────────────────────────────────────────────
 -- Reads the current battle session and writes its full state into output.
 
@@ -130,14 +146,7 @@ function battle_status()
     output.omega_the_void         = state.omega_the_void
     output.omega_the_void_count   = state.omega_the_void ~= nil and #state.omega_the_void or 0
     -- Hide item identity for omega cards that are not revealed.
-    local omega_battle_lines = { state.omega_front_line or {}, state.omega_back_line or {} }
-    for _, omega_line in ipairs(omega_battle_lines) do
-        for _, omega_card in ipairs(omega_line) do
-            if omega_card.face_up == false or omega_card.expose == false then
-                omega_card.item_definition_code_name = nil
-            end
-        end
-    end
+    lib_battle_common.hide_unrevealed_omega_cards(state)
 
     output.omega_front_line       = state.omega_front_line
     output.omega_back_line        = state.omega_back_line
@@ -147,5 +156,7 @@ function battle_status()
     output.status                 = state.status
     output.next_move              = state.metadata ~= nil and state.metadata.next_move or nil
     output.battle_difficulty      = state.metadata ~= nil and state.metadata.battle_difficulty or nil
+    output.omega_planning         = state.omega_planning
+    output.alpha_defending        = state.alpha_defending
     output.client_actions         = state.client_actions
 end

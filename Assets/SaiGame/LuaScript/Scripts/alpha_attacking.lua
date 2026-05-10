@@ -165,9 +165,18 @@ atk_event_data.defender_def       = defender_def
 atk_event_data.defender_line_key  = defender_line_key
 atk_event_data.defender_side_void = defender_side_void
 lib_battle_common.dlog("trigger on_attack: card=" .. attacker_card.inventory_item_id .. " code=" .. (attacker_card.item_definition_code_name or "?") .. " abilities=[" .. tostring(attacker_card.metadata ~= nil and attacker_card.metadata.abilities or "") .. "]")
-local atk_ability_actions, atk_ability_err = lib_card_ability.trigger_card_ability(
-    state, attacker_card, "on_attack", atk_event_data
-)
+local atk_ability_actions, atk_ability_err
+if attacker_def.metadata ~= nil and attacker_def.metadata.type == "ability" then
+    local ability_key = attacker_card.item_definition_code_name
+    lib_battle_common.dlog("trigger on_attack: attacker is ability-type, using item_code as ability key: " .. tostring(ability_key))
+    atk_ability_actions, atk_ability_err = lib_card_ability.trigger_ability_by_key(
+        state, attacker_card, ability_key, "on_attack", atk_event_data
+    )
+else
+    atk_ability_actions, atk_ability_err = lib_card_ability.trigger_card_ability(
+        state, attacker_card, "on_attack", atk_event_data
+    )
+end
 if atk_ability_err ~= nil then output.error = atk_ability_err ; return end
 
 -- Trigger defender ability after attacker ability.
@@ -185,7 +194,6 @@ if def_ability_err ~= nil then output.error = def_ability_err ; return end
 -- ---------------------------------------------------------------------------
 -- Client actions
 -- ---------------------------------------------------------------------------
-if state.client_actions == nil then state.client_actions = {} end
 local attacker_side = "alpha"
 local defender_side = (defender_side_void == "alpha_the_void") and "alpha" or "omega"
 table.insert(state.client_actions, attacker_side .. "_card_expose:" .. attacker_card.inventory_item_id)

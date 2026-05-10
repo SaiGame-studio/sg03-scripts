@@ -26,10 +26,16 @@ require "lib_battle_ai"
 
 local SLOT_COUNT = 5
 
-local resolve_session_id  -- forward declaration
-local load_session        -- forward declaration
-local validate_payload    -- forward declaration
-local build_lines         -- forward declaration
+local resolve_session_id    -- forward declaration
+local load_session          -- forward declaration
+local validate_payload      -- forward declaration
+local build_lines           -- forward declaration
+local verify_card_sets      -- forward declaration
+local check_front_line_limit -- forward declaration
+local build_remaining_hand  -- forward declaration
+local apply_front_line_final_def -- forward declaration
+local deploy_omega          -- forward declaration
+local append_deploy_client_actions -- forward declaration
 
 local function main()
     local val_err = validate_payload()
@@ -46,142 +52,28 @@ local function main()
         return
     end
 
-    -- Cross-verify by inventory_item_id across all 3 groups on each side.
-    -- Payload set : hand + front_line + back_line
-    -- State set   : alpha_hand + alpha_front_line + alpha_back_line (card objects)
-    local payload_ids = {}
-    for _, inventory_item_id in ipairs(payload.hand) do
-        if inventory_item_id ~= "" then payload_ids[inventory_item_id] = true end
-    end
-    for _, slot in ipairs(payload.front_line or {}) do
-        local inventory_item_id = slot.inventory_item_id
-        if inventory_item_id ~= nil and inventory_item_id ~= "" then payload_ids[inventory_item_id] = true end
-    end
-    for _, slot in ipairs(payload.back_line  or {}) do
-        local inventory_item_id = slot.inventory_item_id
-        if inventory_item_id ~= nil and inventory_item_id ~= "" then payload_ids[inventory_item_id] = true end
-    end
+    local verify_err = verify_card_sets(state)
+    if verify_err ~= nil then output.error = verify_err ; return end
 
-    local state_ids = {}
-    for _, card in ipairs(state.alpha_hand) do
-        if card.inventory_item_id ~= nil and card.inventory_item_id ~= "" then
-            state_ids[card.inventory_item_id] = true
-        end
-    end
-    for _, card in ipairs(state.alpha_front_line or {}) do
-        if card.inventory_item_id ~= nil and card.inventory_item_id ~= "" then
-            state_ids[card.inventory_item_id] = true
-        end
-    end
-    for _, card in ipairs(state.alpha_back_line or {}) do
-        if card.inventory_item_id ~= nil and card.inventory_item_id ~= "" then
-            state_ids[card.inventory_item_id] = true
-        end
-    end
-
-    for inventory_item_id, _ in pairs(payload_ids) do
-        if not state_ids[inventory_item_id] then
-            output.error = "payload item (" .. inventory_item_id .. ") does not exist in battle state"
-            return
-        end
-    end
-    for inventory_item_id, _ in pairs(state_ids) do
-        if not payload_ids[inventory_item_id] then
-            output.error = "state item (" .. inventory_item_id .. ") is missing from payload"
-            return
-        end
-    end
-
-    -- Enforce: at most 1 NEW card may be deployed to front_line per turn.
-    -- Cards already present in state.alpha_front_line are not counted as new.
-    local existing_front_ids = {}
-    for _, card in ipairs(state.alpha_front_line or {}) do
-        if card.inventory_item_id ~= nil and card.inventory_item_id ~= "" then
-            existing_front_ids[card.inventory_item_id] = true
-        end
-    end
-
-    local new_front_count = 0
-    for _, slot in ipairs(payload.front_line or {}) do
-        local inventory_item_id = slot.inventory_item_id
-        if inventory_item_id ~= nil and inventory_item_id ~= "" and not existing_front_ids[inventory_item_id] then
-            new_front_count = new_front_count + 1
-        end
-    end
-    if new_front_count > 1 then
-        output.error = "only 1 new card may be deployed to front_line per turn (" .. new_front_count .. " new cards received)"
-        return
-    end
+    local limit_err = check_front_line_limit(state)
+    if limit_err ~= nil then output.error = limit_err ; return end
 
     local front_line, back_line, build_err = build_lines(state.alpha_hand)
     if build_err ~= nil then output.error = build_err ; return end
 
-    -- Build new alpha_hand from payload.hand preserving slot positions.
-    -- Missing or empty-string slots become {} (empty slot marker).
-    local hand_index = {}
-    for _, card in ipairs(state.alpha_hand) do
-        if card.inventory_item_id ~= nil and card.inventory_item_id ~= "" then
-            hand_index[card.inventory_item_id] = card
-        end
-    end
-
-    local remaining_hand = {}
-    local remaining_count = 0
-    for i = 1, SLOT_COUNT do
-        local inventory_item_id = payload.hand[i]
-        if inventory_item_id ~= nil and inventory_item_id ~= "" then
-            local card = hand_index[inventory_item_id]
-            card.slot_index = i - 1
-            remaining_hand[i] = card
-            remaining_count = remaining_count + 1
-        else
-            remaining_hand[i] = {}
-        end
-    end
-
-    state.alpha_hand       = remaining_hand
+    state.alpha_hand       = build_remaining_hand(state.alpha_hand)
     state.alpha_front_line = front_line
     state.alpha_back_line  = back_line
 
-    -- Omega AI deploy cards — difficulty comes from battle session metadata (default "normal")
-    local ai_difficulty = state.metadata ~= nil and state.metadata.battle_difficulty or "normal"
-    local o_front, o_back, o_hand, ai_err = lib_battle_ai.deploy_omega_cards(state, ai_difficulty)
+    apply_front_line_final_def(front_line, state.item_defs)
+
+    local o_front, o_back, o_hand, ai_err = deploy_omega(state)
     if ai_err ~= nil then output.error = ai_err ; return end
     state.omega_front_line = o_front
     state.omega_back_line  = o_back
     state.omega_hand       = o_hand
 
-    -- Clear totem_pulse for any omega card that is not face-up (hidden cards).
-    local omega_lines = { o_front, o_back }
-    for _, omega_line in ipairs(omega_lines) do
-        for _, omega_card in ipairs(omega_line) do
-            if omega_card.face_up == false or omega_card.expose == false then
-                omega_card.totem_pulse = nil
-            end
-        end
-    end
-
-    if state.client_actions == nil then state.client_actions = {} end
-    for _, card in ipairs(front_line) do
-        if card.inventory_item_id ~= nil and card.inventory_item_id ~= "" then
-            table.insert(state.client_actions, "alpha_hand_to_front_line:" .. card.inventory_item_id .. "," .. (card.slot_index or 0))
-        end
-    end
-    for _, card in ipairs(back_line) do
-        if card.inventory_item_id ~= nil and card.inventory_item_id ~= "" then
-            table.insert(state.client_actions, "alpha_hand_to_back_line:" .. card.inventory_item_id .. "," .. (card.slot_index or 0))
-        end
-    end
-    for _, card in ipairs(o_front) do
-        if card.inventory_item_id ~= nil and card.inventory_item_id ~= "" then
-            table.insert(state.client_actions, "omega_hand_to_front_line:" .. card.inventory_item_id .. "," .. (card.slot_index or 0))
-        end
-    end
-    for _, card in ipairs(o_back) do
-        if card.inventory_item_id ~= nil and card.inventory_item_id ~= "" then
-            table.insert(state.client_actions, "omega_hand_to_back_line:" .. card.inventory_item_id .. "," .. (card.slot_index or 0))
-        end
-    end
+    append_deploy_client_actions(state, front_line, back_line, o_front, o_back)
 
     state.action           = (state.action or 0) + 1
     state.updated_at       = ctx.timestamp
@@ -326,6 +218,153 @@ build_lines = function(alpha_hand)
     end
 
     return front_line, back_line, nil
+end
+
+-- Cross-verifies that payload IDs (hand + front_line + back_line) exactly match
+-- state IDs (alpha_hand + alpha_front_line + alpha_back_line). Returns err or nil.
+verify_card_sets = function(state)
+    local payload_ids = {}
+    for _, inventory_item_id in ipairs(payload.hand) do
+        if inventory_item_id ~= "" then payload_ids[inventory_item_id] = true end
+    end
+    for _, slot in ipairs(payload.front_line or {}) do
+        local inventory_item_id = slot.inventory_item_id
+        if inventory_item_id ~= nil and inventory_item_id ~= "" then payload_ids[inventory_item_id] = true end
+    end
+    for _, slot in ipairs(payload.back_line or {}) do
+        local inventory_item_id = slot.inventory_item_id
+        if inventory_item_id ~= nil and inventory_item_id ~= "" then payload_ids[inventory_item_id] = true end
+    end
+
+    local state_ids = {}
+    for _, card in ipairs(state.alpha_hand) do
+        if card.inventory_item_id ~= nil and card.inventory_item_id ~= "" then state_ids[card.inventory_item_id] = true end
+    end
+    for _, card in ipairs(state.alpha_front_line or {}) do
+        if card.inventory_item_id ~= nil and card.inventory_item_id ~= "" then state_ids[card.inventory_item_id] = true end
+    end
+    for _, card in ipairs(state.alpha_back_line or {}) do
+        if card.inventory_item_id ~= nil and card.inventory_item_id ~= "" then state_ids[card.inventory_item_id] = true end
+    end
+
+    for inventory_item_id, _ in pairs(payload_ids) do
+        if not state_ids[inventory_item_id] then
+            return "payload item (" .. inventory_item_id .. ") does not exist in battle state"
+        end
+    end
+    for inventory_item_id, _ in pairs(state_ids) do
+        if not payload_ids[inventory_item_id] then
+            return "state item (" .. inventory_item_id .. ") is missing from payload"
+        end
+    end
+    return nil
+end
+
+-- Enforces at most 1 new card deployed to front_line per turn. Returns err or nil.
+check_front_line_limit = function(state)
+    local existing_front_ids = {}
+    for _, card in ipairs(state.alpha_front_line or {}) do
+        if card.inventory_item_id ~= nil and card.inventory_item_id ~= "" then
+            existing_front_ids[card.inventory_item_id] = true
+        end
+    end
+    local new_front_count = 0
+    for _, slot in ipairs(payload.front_line or {}) do
+        local inventory_item_id = slot.inventory_item_id
+        if inventory_item_id ~= nil and inventory_item_id ~= "" and not existing_front_ids[inventory_item_id] then
+            new_front_count = new_front_count + 1
+        end
+    end
+    if new_front_count > 1 then
+        return "only 1 new card may be deployed to front_line per turn (" .. new_front_count .. " new cards received)"
+    end
+    return nil
+end
+
+-- Rebuilds alpha_hand from payload.hand, preserving slot positions.
+-- Missing or empty-string slots become {} (empty slot marker).
+build_remaining_hand = function(alpha_hand)
+    local hand_index = {}
+    for _, card in ipairs(alpha_hand) do
+        if card.inventory_item_id ~= nil and card.inventory_item_id ~= "" then
+            hand_index[card.inventory_item_id] = card
+        end
+    end
+    local remaining_hand = {}
+    for i = 1, SLOT_COUNT do
+        local inventory_item_id = payload.hand[i]
+        if inventory_item_id ~= nil and inventory_item_id ~= "" then
+            local card = hand_index[inventory_item_id]
+            card.slot_index = i - 1
+            remaining_hand[i] = card
+        else
+            remaining_hand[i] = {}
+        end
+    end
+    return remaining_hand
+end
+
+-- Sets final_def on each character-type card in front_line from item def base_stats.def.
+-- Ability-type cards are skipped (metadata.type ~= "character").
+apply_front_line_final_def = function(front_line, item_defs)
+    for _, card in ipairs(front_line) do
+        if card.inventory_item_id ~= nil and card.inventory_item_id ~= "" then
+            local item_def = nil
+            if item_defs ~= nil then
+                for _, def in ipairs(item_defs) do
+                    if def.item_code == card.item_definition_code_name then
+                        item_def = def
+                        break
+                    end
+                end
+            end
+            local is_character = item_def ~= nil and item_def.metadata ~= nil and item_def.metadata.type == "character"
+            if is_character then
+                card.final_def = (item_def.base_stats ~= nil and item_def.base_stats.def) or 0
+            end
+        end
+    end
+end
+
+-- Runs omega AI deploy and clears totem_pulse on hidden omega cards.
+-- Returns o_front, o_back, o_hand, err.
+deploy_omega = function(state)
+    local ai_difficulty = state.metadata ~= nil and state.metadata.battle_difficulty or "normal"
+    local o_front, o_back, o_hand, ai_err = lib_battle_ai.deploy_omega_cards(state, ai_difficulty)
+    if ai_err ~= nil then return nil, nil, nil, ai_err end
+    local omega_lines = { o_front, o_back }
+    for _, omega_line in ipairs(omega_lines) do
+        for _, omega_card in ipairs(omega_line) do
+            if omega_card.face_up == false or omega_card.expose == false then
+                omega_card.totem_pulse = nil
+            end
+        end
+    end
+    return o_front, o_back, o_hand, nil
+end
+
+-- Appends client actions for all alpha and omega card movements.
+append_deploy_client_actions = function(state, front_line, back_line, o_front, o_back)
+    for _, card in ipairs(front_line) do
+        if card.inventory_item_id ~= nil and card.inventory_item_id ~= "" then
+            table.insert(state.client_actions, "alpha_hand_to_front_line:" .. card.inventory_item_id .. "," .. (card.slot_index or 0))
+        end
+    end
+    for _, card in ipairs(back_line) do
+        if card.inventory_item_id ~= nil and card.inventory_item_id ~= "" then
+            table.insert(state.client_actions, "alpha_hand_to_back_line:" .. card.inventory_item_id .. "," .. (card.slot_index or 0))
+        end
+    end
+    for _, card in ipairs(o_front) do
+        if card.inventory_item_id ~= nil and card.inventory_item_id ~= "" then
+            table.insert(state.client_actions, "omega_hand_to_front_line:" .. card.inventory_item_id .. "," .. (card.slot_index or 0))
+        end
+    end
+    for _, card in ipairs(o_back) do
+        if card.inventory_item_id ~= nil and card.inventory_item_id ~= "" then
+            table.insert(state.client_actions, "omega_hand_to_back_line:" .. card.inventory_item_id .. "," .. (card.slot_index or 0))
+        end
+    end
 end
 
 main()
