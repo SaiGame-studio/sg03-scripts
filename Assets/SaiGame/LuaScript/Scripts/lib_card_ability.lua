@@ -16,8 +16,9 @@
 --   3. Add an elseif branch in _dispatch_one_ability's dispatch block.
 
 local _known_abilities = {
-    twin_reaper    = { event = "on_attack" },   -- also strikes the card to the right of the target (fallback: left)
-    spinning_slash = { event = "on_attack" },   -- requires azure_blade in front-line; deals attacker.metadata.atk_add + azure_blade.metadata.atk
+    twin_reaper    = { event = "on_attack"  },   -- also strikes the card to the right of the target (fallback: left)
+    spinning_slash = { event = "on_attack"  },   -- requires azure_blade in front-line; deals attacker.metadata.atk_add + azure_blade.metadata.atk
+    cross_guard    = {},                          -- increases target's final_def by 200 (triggered directly as ability-type card)
 }
 
 -- ─── Internal helpers ─────────────────────────────────────────────────────────
@@ -250,6 +251,22 @@ local function _handle_spinning_slash(state, attacker_card, event_data)
     return ability_actions, nil
 end
 
+-- cross_guard: when played as attacker (ability-type), increases the target card's final_def by 200.
+local function _handle_cross_guard(state, source_card, event_data)
+    lib_battle_common.dlog("== [ability] cross_guard ====================")
+    local target_card = (event_data or {}).defender_card
+    if target_card == nil then
+        lib_battle_common.dlog("[ability] cross_guard: skip - defender_card is nil in event_data")
+        return {}, nil
+    end
+    local guard_bonus = 200
+    local prev_def = target_card.final_def or 0
+    target_card.final_def = prev_def + guard_bonus
+    lib_battle_common.dlog("[ability] cross_guard: target=" .. target_card.inventory_item_id .. " final_def " .. prev_def .. " -> " .. target_card.final_def)
+    local guard_actions = { "card_ability:" .. source_card.inventory_item_id .. ",cross_guard," .. target_card.inventory_item_id }
+    return guard_actions, nil
+end
+
 -- ─── Ability Dispatcher ───────────────────────────────────────────────────────
 
 -- Calls the handler for one ability key only if its registered event matches trigger_event.
@@ -261,7 +278,7 @@ local function _dispatch_one_ability(state, source_card, key, trigger_event, eve
         lib_battle_common.dlog("[ability] dispatch: key=" .. tostring(key) .. " UNKNOWN - not registered in _known_abilities")
         return {}, "unknown ability key: " .. tostring(key)
     end
-    if ability_def.event ~= trigger_event then
+    if ability_def.event ~= nil and ability_def.event ~= trigger_event then
         lib_battle_common.dlog("[ability] dispatch: key=" .. key .. " skip - registered for event=" .. ability_def.event .. " but current event=" .. trigger_event)
         return {}, nil
     end
@@ -271,6 +288,8 @@ local function _dispatch_one_ability(state, source_card, key, trigger_event, eve
         return _handle_twin_reaper(state, source_card, event_data)
     elseif key == "spinning_slash" then
         return _handle_spinning_slash(state, source_card, event_data)
+    elseif key == "cross_guard" then
+        return _handle_cross_guard(state, source_card, event_data)
     else
         lib_battle_common.dlog("[ability] dispatch: key=" .. key .. " ERROR - no handler defined")
         return {}, "no handler for ability key: " .. tostring(key)
@@ -301,6 +320,25 @@ function trigger_card_ability(state, source_card, trigger_event, event_data)
         for _, action in ipairs(ability_actions) do
             table.insert(all_actions, action)
         end
+    end
+    return all_actions, nil
+end
+
+-- Triggers a single ability by its key directly, bypassing metadata lookup.
+-- Use when the card IS the ability (metadata.type == "ability") and its
+-- item_definition_code_name is the ability key.
+-- Returns: extra_client_actions (table), err (string or nil)
+function trigger_ability_by_key(state, source_card, ability_key, trigger_event, event_data)
+    lib_battle_common.dlog("-- [ability] trigger_ability_by_key: key=" .. tostring(ability_key) .. " event=" .. tostring(trigger_event) .. " ----------------------")
+    local all_actions = {}
+    source_card.face_up = true
+    source_card.expose  = true
+    local source_side = _find_card_side(state, source_card)
+    table.insert(all_actions, source_side .. "_card_expose:" .. source_card.inventory_item_id)
+    local ability_actions, err = _dispatch_one_ability(state, source_card, ability_key, trigger_event, event_data)
+    if err ~= nil then return all_actions, err end
+    for _, action in ipairs(ability_actions) do
+        table.insert(all_actions, action)
     end
     return all_actions, nil
 end
