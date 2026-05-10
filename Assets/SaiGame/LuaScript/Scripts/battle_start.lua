@@ -35,6 +35,7 @@ local resolve_mode           -- forward declaration
 local build_state            -- forward declaration
 local load_player_the_source -- forward declaration
 local load_enemy_the_source  -- forward declaration
+local load_item_defs         -- forward declaration
 
 local function main()
     local err = validate_payload()
@@ -77,6 +78,13 @@ local function main()
     lib_battle_common.dlog("[battle_start] battle difficulty: " .. tostring(battle_difficulty))
 
     local state = build_state(enemy, selected_mode, battle_difficulty, player_the_source, enemy_the_source, preset)
+    lib_battle_common.append_client_action(state, "alpha_source_spawn_card:" .. #player_the_source)
+    lib_battle_common.append_client_action(state, "omega_source_spawn_card:" .. #enemy_the_source)
+
+    local item_defs, defs_err = load_item_defs(player_the_source, enemy_the_source)
+    if defs_err ~= nil then output.error = defs_err ; return end
+    state.item_defs = item_defs
+    lib_battle_common.dlog("[battle_start] item_defs loaded: " .. tostring(#item_defs) .. " definitions")
 
     local session_id, create_err = game.battle_session_create(state)
     if create_err ~= nil then output.error = create_err ; return end
@@ -152,10 +160,7 @@ build_state = function(enemy, selected_mode, battle_difficulty, player_the_sourc
         action             = 0,  -- each action is one card played
         status             = "active",
         alpha_defending    = false,
-        client_actions     = {
-            "alpha_source_spawn_card:" .. #player_the_source,
-            "omega_source_spawn_card:" .. #enemy_the_source,
-        },
+        client_actions     = {},
         omega_planning     = {},
     }
 end
@@ -222,6 +227,25 @@ check_enemy = function(e)
         return "enemy deck must have fewer than " .. DECK_CARD_MAX .. " cards (has " .. total .. ")"
     end
     return nil
+end
+
+load_item_defs = function(player_source, enemy_source)
+    local seen       = {}
+    local codes      = {}
+    local all_sources = { player_source or {}, enemy_source or {} }
+    for _, source_list in ipairs(all_sources) do
+        for _, source_card in ipairs(source_list) do
+            local code = source_card.item_definition_code_name
+            if code ~= nil and code ~= "" and not seen[code] then
+                seen[code]        = true
+                codes[#codes + 1] = code
+            end
+        end
+    end
+    if #codes == 0 then return {}, nil end
+    local defs, fetch_err = game.get_item_defs_by_codes(codes)
+    if fetch_err ~= nil then return nil, fetch_err end
+    return defs or {}, nil
 end
 
 main()

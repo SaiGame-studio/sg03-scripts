@@ -152,12 +152,12 @@ end
 local function append_client_actions(state, attacker_card, defender_card, defender_side_void, dmg_actions, atk_ability_actions, def_ability_actions)
     local attacker_side = "alpha"
     local defender_side = (defender_side_void == "alpha_the_void") and "alpha" or "omega"
-    table.insert(state.client_actions, attacker_side .. "_card_expose:" .. attacker_card.inventory_item_id)
-    table.insert(state.client_actions, defender_side .. "_card_expose:" .. defender_card.inventory_item_id)
-    table.insert(state.client_actions, "alpha_attack:" .. payload.attacker_inventory_item_id .. "," .. payload.defender_inventory_item_id)
-    for _, action in ipairs(dmg_actions) do table.insert(state.client_actions, action) end
-    for _, action in ipairs(atk_ability_actions) do table.insert(state.client_actions, action) end
-    for _, action in ipairs(def_ability_actions) do table.insert(state.client_actions, action) end
+    lib_battle_common.append_client_action(state, attacker_side .. "_card_expose:" .. attacker_card.inventory_item_id)
+    lib_battle_common.append_client_action(state, defender_side .. "_card_expose:" .. defender_card.inventory_item_id)
+    lib_battle_common.append_client_action(state, "alpha_attack:" .. payload.attacker_inventory_item_id .. "," .. payload.defender_inventory_item_id)
+    for _, action in ipairs(dmg_actions) do lib_battle_common.append_client_action(state, action) end
+    for _, action in ipairs(atk_ability_actions) do lib_battle_common.append_client_action(state, action) end
+    for _, action in ipairs(def_ability_actions) do lib_battle_common.append_client_action(state, action) end
 end
 
 -- If the attacker is an ability-type card, remove it from its line and send it to alpha_the_void.
@@ -166,7 +166,7 @@ local function handle_ability_type_attacker(state, attacker_card, attacker_line_
     lib_battle_common.remove_card_from_line(state[attacker_line_key], attacker_card.inventory_item_id)
     if state.alpha_the_void == nil then state.alpha_the_void = {} end
     table.insert(state.alpha_the_void, attacker_card)
-    table.insert(state.client_actions, "alpha_card_sent_to_void:" .. attacker_card.inventory_item_id)
+    lib_battle_common.append_client_action(state, "alpha_card_sent_to_void:" .. attacker_card.inventory_item_id)
     lib_battle_common.dlog("attacker is ability-type, sent to alpha_the_void: " .. attacker_card.inventory_item_id)
 end
 

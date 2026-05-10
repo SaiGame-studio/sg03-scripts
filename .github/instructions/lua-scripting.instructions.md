@@ -130,6 +130,38 @@ Variable names must describe the **role or domain** of the value, not its type o
 - Loop variables must name what they iterate over: `for _, ability_key in ipairs(keys)` not `for _, k`.
 - Single-letter variables are forbidden except for math-only locals (`i`, `j`, `n` in numeric for loops).
 
+## Function Length — Keep Functions Small
+
+A function must do **one thing**. If a function exceeds **30 lines** (excluding blank lines and comments), it must be split into smaller, well-named helper functions.
+
+**Rules:**
+- Extract any distinct step or logical phase into its own named local function.
+- Each extracted function must have a name that describes what it does, not how it does it (e.g., `resolve_attacker_target`, `apply_damage`, `check_win_condition`).
+- The parent function becomes an orchestrator that calls the helpers in sequence.
+- Helpers that are reusable across scripts belong in a library (e.g., `lib_battle_common`).
+
+**Example — too long (forbidden):**
+```lua
+local function run_attack(state, attacker_card)
+    -- 40+ lines mixing target resolution, damage calc, stun, logging, win check ...
+end
+```
+
+**Required — split into focused helpers:**
+```lua
+local function resolve_attack_target(state, attacker_card) ... end
+local function calculate_attack_damage(attacker_def, defender_def) ... end
+local function apply_attack_damage(state, defender_card, damage) ... end
+local function check_battle_win_condition(state) ... end
+
+local function run_attack(state, attacker_card)
+    local defender_card = resolve_attack_target(state, attacker_card)
+    local damage        = calculate_attack_damage(attacker_card, defender_card)
+    apply_attack_damage(state, defender_card, damage)
+    check_battle_win_condition(state)
+end
+```
+
 ## Function Call Style — No Inline Table Literals
 
 Never construct a table literal `{ ... }` directly inside a function call argument list.
