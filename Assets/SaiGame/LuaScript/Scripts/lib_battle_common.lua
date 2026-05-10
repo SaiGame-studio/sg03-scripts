@@ -59,6 +59,13 @@ function reset_turn_cards(state)
     end
 end
 
+-- ─── is_card_stunned ──────────────────────────────────────────────────────
+-- Returns true if the card is currently stunned (stun_count > 0).
+function is_card_stunned(card)
+    if card == nil then return false end
+    return (card.stun_count or 0) > 0
+end
+
 -- ─── get_draw_card_count ────────────────────────────────────────────────────
 -- Returns the number of cards a player draws at the start of their turn.
 function get_draw_card_count()

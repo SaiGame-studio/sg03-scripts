@@ -101,8 +101,8 @@ function deal_damage_to_character(state, attacker_card, target_card, damage, tar
         lib_battle_common.dlog("[ability] deal_damage: skip - target is not character type")
         return {}, nil
     end
-    if (attacker_card.stun_remain or 0) > 0 then
-        lib_battle_common.dlog("[ability] deal_damage: skip - attacker stunned (stun_remain=" .. (attacker_card.stun_remain or 0) .. ")")
+    if lib_battle_common.is_card_stunned(attacker_card) then
+        lib_battle_common.dlog("[ability] deal_damage: skip - attacker stunned (stun_count=" .. (attacker_card.stun_count or 0) .. ")")
         return {}, nil
     end
 
@@ -223,7 +223,7 @@ local function _handle_spinning_slash(state, attacker_card, event_data)
     local azure_blade_card = nil
     for _, slot_card in ipairs(front_line) do
         if slot_card.item_definition_code_name == "azure_blade"
-           and (slot_card.stun_remain or 0) <= 0 then
+           and not lib_battle_common.is_card_stunned(slot_card) then
             azure_blade_card = slot_card
             break
         end

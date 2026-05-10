@@ -549,3 +549,57 @@ function omega_draw(state, card_count)
 
     return hand, nil
 end
+
+-- ── omega_planning_to_attack ────────────────────────────────────────────────
+-- Plans Omega's deal_damage_to_character attack:
+--   attacker : first non-stunned card in omega_front_line.
+--   defender : first character card in alpha_front_line.
+-- (attacker-ability attacks that can hit back-line are handled separately.)
+-- Appends a client action: "omega_planing_attack:<omega_inv_id>,<alpha_inv_id>"
+-- Returns: err
+
+function omega_planning_to_attack(state)
+    lib_battle_common.dlog("[lib_battle_ai] == omega_planning_to_attack ==")
+    if type(state) ~= "table" then
+        return "omega_planning_to_attack: state must be a table"
+    end
+
+    -- Pick first valid omega attacker from front line (must not be stunned).
+    local omega_attacker = nil
+    local omega_front_line = state.omega_front_line or {}
+    for _, omega_card in ipairs(omega_front_line) do
+        if omega_card.inventory_item_id ~= nil and omega_card.inventory_item_id ~= ""
+            and not lib_battle_common.is_card_stunned(omega_card) then
+            omega_attacker = omega_card
+            break
+        end
+    end
+
+    if omega_attacker == nil then
+        lib_battle_common.dlog("[lib_battle_ai] omega_planning_to_attack: no valid omega attacker, skipping")
+        return nil
+    end
+
+    -- deal_damage_to_character: defender must be a character in alpha_front_line only.
+    local alpha_defender = nil
+    local alpha_front_line = state.alpha_front_line or {}
+    for _, alpha_card in ipairs(alpha_front_line) do
+        if alpha_card.inventory_item_id ~= nil and alpha_card.inventory_item_id ~= ""
+            and lib_battle_common.check_card_type(state.item_defs, alpha_card, "character") then
+            alpha_defender = alpha_card
+            break
+        end
+    end
+
+    if alpha_defender == nil then
+        lib_battle_common.dlog("[lib_battle_ai] omega_planning_to_attack: no character defender in alpha_front_line, skipping")
+        return nil
+    end
+
+    if state.client_actions == nil then state.client_actions = {} end
+    local attack_action = "omega_planing_attack:" .. omega_attacker.inventory_item_id .. "," .. alpha_defender.inventory_item_id
+    table.insert(state.client_actions, attack_action)
+    lib_battle_common.dlog("[lib_battle_ai] omega_planning_to_attack: " .. attack_action)
+
+    return nil
+end
