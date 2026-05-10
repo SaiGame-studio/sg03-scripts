@@ -43,6 +43,7 @@ local function main()
     -- ── Omega attack planning ─────────────────────────────────────────────────
     local attack_plan_err = lib_battle_ai.omega_planning_to_attack(state)
     if attack_plan_err ~= nil then output.error = attack_plan_err ; return end
+    state.alpha_defending = true
 
     -- ── Advance turn ──────────────────────────────────────────────────────
     if state.metadata == nil then state.metadata = {} end

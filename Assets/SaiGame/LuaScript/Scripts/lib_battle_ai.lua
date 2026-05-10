@@ -571,7 +571,7 @@ function omega_planning_to_attack(state)
     end
 
     if omega_attacker == nil then
-        lib_battle_common.dlog("[lib_battle_ai] omega_planning_to_attack: no valid omega attacker, skipping")
+        lib_battle_common.dlog("[lib_battle_ai] omega_planning_to_attack: no valid omega attacker (face_up+expose), skipping")
         return nil
     end
 
@@ -591,10 +591,15 @@ function omega_planning_to_attack(state)
         return nil
     end
 
+    -- Force attacker to be revealed so the client can animate the expose.
+    omega_attacker.face_up = true
+    omega_attacker.expose  = true
+    table.insert(state.client_actions, "omega_card_expose:" .. omega_attacker.inventory_item_id)
+
     local attack_action = "omega_planing_character_attack:" .. omega_attacker.inventory_item_id .. "," .. alpha_defender.inventory_item_id
     table.insert(state.client_actions, attack_action)
     local plan_entry = {}
-    plan_entry.action             = "character_attack"
+    plan_entry.action            = "character_attack"
     plan_entry.attacker_inv_id   = omega_attacker.inventory_item_id
     plan_entry.defender_inv_id   = alpha_defender.inventory_item_id
     table.insert(state.omega_planning, plan_entry)

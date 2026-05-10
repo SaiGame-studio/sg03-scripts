@@ -148,5 +148,6 @@ function battle_status()
     output.next_move              = state.metadata ~= nil and state.metadata.next_move or nil
     output.battle_difficulty      = state.metadata ~= nil and state.metadata.battle_difficulty or nil
     output.omega_planning         = state.omega_planning
+    output.alpha_defending        = state.alpha_defending
     output.client_actions         = state.client_actions
 end
