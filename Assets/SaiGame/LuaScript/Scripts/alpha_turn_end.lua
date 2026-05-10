@@ -24,6 +24,10 @@ local function main()
     -- ── Reset per-turn card state (first action) ──────────────────────────
     lib_battle_common.reset_turn_cards(state)
 
+    -- ── Lamp handoff to omega ─────────────────────────────────────────────
+    if state.client_actions == nil then state.client_actions = {} end
+    lib_battle_common.append_client_action(state, "omega_take_lamp")
+
     -- ── Omega draw count ──────────────────────────────────────────────────
     local omega_draw_count = lib_battle_common.get_draw_card_count()
     output.omega_draw_card_count = omega_draw_count
@@ -50,6 +54,9 @@ local function main()
     state.metadata.next_move = "omega_turn"
     state.turn = (state.turn or 0) + 1
     lib_battle_common.dlog("[alpha_turn_end] turn advanced to " .. tostring(state.turn) .. ", next_move = omega_turn")
+
+    -- ── Lamp handoff back to alpha ────────────────────────────────────────
+    lib_battle_common.append_client_action(state, "alpha_take_lamp")
 
     -- ── Persist ───────────────────────────────────────────────────────────
     local save_err = game.battle_session_update(session_id, state)

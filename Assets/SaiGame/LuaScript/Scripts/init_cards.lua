@@ -37,6 +37,8 @@ local function main()
     state.alpha_hand = alpha_hand
     state.omega_hand = omega_hand
 
+    lib_battle_common.append_client_action(state, "alpha_take_lamp")
+
     state.action       = (state.action or 0) + 1
     state.updated_at = ctx.timestamp
     if state.metadata == nil then state.metadata = {} end

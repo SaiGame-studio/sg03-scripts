@@ -33,9 +33,8 @@ local build_lines           -- forward declaration
 local verify_card_sets      -- forward declaration
 local check_front_line_limit -- forward declaration
 local build_remaining_hand  -- forward declaration
-local apply_front_line_final_def -- forward declaration
-local deploy_omega          -- forward declaration
-local append_deploy_client_actions -- forward declaration
+local deploy_omega                       -- forward declaration
+local append_alpha_deploy_client_actions -- forward declaration
 
 local function main()
     local val_err = validate_payload()
@@ -65,7 +64,15 @@ local function main()
     state.alpha_front_line = front_line
     state.alpha_back_line  = back_line
 
-    apply_front_line_final_def(front_line, state.item_defs)
+    for _, deployed_card in ipairs(front_line) do
+        lib_battle_common.reset_card_turn_state(state.item_defs, deployed_card)
+    end
+    for _, deployed_card in ipairs(back_line) do
+        lib_battle_common.reset_card_turn_state(state.item_defs, deployed_card)
+    end
+
+    append_alpha_deploy_client_actions(state, front_line, back_line)
+    lib_battle_common.append_client_action(state, "omega_take_lamp")
 
     local o_front, o_back, o_hand, ai_err = deploy_omega(state)
     if ai_err ~= nil then output.error = ai_err ; return end
@@ -73,7 +80,14 @@ local function main()
     state.omega_back_line  = o_back
     state.omega_hand       = o_hand
 
-    append_deploy_client_actions(state, front_line, back_line, o_front, o_back)
+    for _, deployed_card in ipairs(o_front) do
+        lib_battle_common.reset_card_turn_state(state.item_defs, deployed_card)
+    end
+    for _, deployed_card in ipairs(o_back) do
+        lib_battle_common.reset_card_turn_state(state.item_defs, deployed_card)
+    end
+
+    lib_battle_common.append_client_action(state, "alpha_take_lamp")
 
     state.action           = (state.action or 0) + 1
     state.updated_at       = ctx.timestamp
@@ -84,6 +98,7 @@ local function main()
     if save_err ~= nil then output.error = save_err ; return end
 
     lib_battle_common.battle_status()
+    output.client_actions = state.client_actions
 end
 
 -- ─── Functions ───────────────────────────────────────────────────────────────
@@ -304,28 +319,6 @@ build_remaining_hand = function(alpha_hand)
     return remaining_hand
 end
 
--- Sets final_def on each character-type card in front_line from item def base_stats.def.
--- Ability-type cards are skipped (metadata.type ~= "character").
-apply_front_line_final_def = function(front_line, item_defs)
-    for _, card in ipairs(front_line) do
-        if card.inventory_item_id ~= nil and card.inventory_item_id ~= "" then
-            local item_def = nil
-            if item_defs ~= nil then
-                for _, def in ipairs(item_defs) do
-                    if def.item_code == card.item_definition_code_name then
-                        item_def = def
-                        break
-                    end
-                end
-            end
-            local is_character = item_def ~= nil and item_def.metadata ~= nil and item_def.metadata.type == "character"
-            if is_character then
-                card.final_def = (item_def.base_stats ~= nil and item_def.base_stats.def) or 0
-            end
-        end
-    end
-end
-
 -- Runs omega AI deploy and clears totem_pulse on hidden omega cards.
 -- Returns o_front, o_back, o_hand, err.
 deploy_omega = function(state)
@@ -344,25 +337,15 @@ deploy_omega = function(state)
 end
 
 -- Appends client actions for all alpha and omega card movements.
-append_deploy_client_actions = function(state, front_line, back_line, o_front, o_back)
-    for _, card in ipairs(front_line) do
-        if card.inventory_item_id ~= nil and card.inventory_item_id ~= "" then
-            table.insert(state.client_actions, "alpha_hand_to_front_line:" .. card.inventory_item_id .. "," .. (card.slot_index or 0))
+append_alpha_deploy_client_actions = function(state, front_line, back_line)
+    for _, alpha_front_card in ipairs(front_line) do
+        if alpha_front_card.inventory_item_id ~= nil and alpha_front_card.inventory_item_id ~= "" then
+            lib_battle_common.append_client_action(state, "alpha_hand_to_front_line:" .. alpha_front_card.inventory_item_id .. "," .. (alpha_front_card.slot_index or 0))
         end
     end
-    for _, card in ipairs(back_line) do
-        if card.inventory_item_id ~= nil and card.inventory_item_id ~= "" then
-            table.insert(state.client_actions, "alpha_hand_to_back_line:" .. card.inventory_item_id .. "," .. (card.slot_index or 0))
-        end
-    end
-    for _, card in ipairs(o_front) do
-        if card.inventory_item_id ~= nil and card.inventory_item_id ~= "" then
-            table.insert(state.client_actions, "omega_hand_to_front_line:" .. card.inventory_item_id .. "," .. (card.slot_index or 0))
-        end
-    end
-    for _, card in ipairs(o_back) do
-        if card.inventory_item_id ~= nil and card.inventory_item_id ~= "" then
-            table.insert(state.client_actions, "omega_hand_to_back_line:" .. card.inventory_item_id .. "," .. (card.slot_index or 0))
+    for _, alpha_back_card in ipairs(back_line) do
+        if alpha_back_card.inventory_item_id ~= nil and alpha_back_card.inventory_item_id ~= "" then
+            lib_battle_common.append_client_action(state, "alpha_hand_to_back_line:" .. alpha_back_card.inventory_item_id .. "," .. (alpha_back_card.slot_index or 0))
         end
     end
 end
