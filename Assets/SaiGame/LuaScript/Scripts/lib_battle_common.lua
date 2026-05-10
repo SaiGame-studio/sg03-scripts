@@ -34,11 +34,31 @@ function remove_card_from_line(line, inventory_item_id)
     return false
 end
 
+-- ─── reset_card_turn_state ──────────────────────────────────────────────────
+-- Resets per-turn state for a single card using item_defs to restore final_def.
+--   trigger              → false
+--   final_def            → base_stats.def from item_defs (0 if not found)
+--   total_damage_received → 0
+-- No-ops if card has no item_definition_code_name.
+function reset_card_turn_state(item_defs, reset_card)
+    if reset_card == nil then return end
+    if reset_card.item_definition_code_name == nil or reset_card.item_definition_code_name == "" then return end
+    local base_def = 0
+    if item_defs ~= nil then
+        for _, item_def in ipairs(item_defs) do
+            if item_def.item_code == reset_card.item_definition_code_name then
+                base_def = (item_def.base_stats and item_def.base_stats.def) or 0
+                break
+            end
+        end
+    end
+    reset_card.trigger               = false
+    reset_card.final_def             = base_def
+    reset_card.total_damage_received = 0
+end
+
 -- ─── reset_turn_cards ───────────────────────────────────────────────────────
 -- Resets per-turn state on every card in all four battle lines.
---   trigger              → false
---   final_def            → 0
---   total_damage_received → 0
 function reset_turn_cards(state)
     lib_battle_common.dlog("== reset_turn_cards done ==")
 
@@ -49,12 +69,8 @@ function reset_turn_cards(state)
         state.omega_back_line  or {},
     }
     for _, line in ipairs(lines) do
-        for _, card in ipairs(line) do
-            if card.item_definition_code_name ~= nil and card.item_definition_code_name ~= "" then
-                card.trigger               = false
-                card.final_def             = 0
-                card.total_damage_received = 0
-            end
+        for _, reset_card in ipairs(line) do
+            lib_battle_common.reset_card_turn_state(state.item_defs, reset_card)
         end
     end
 end

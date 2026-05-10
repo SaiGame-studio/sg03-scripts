@@ -33,7 +33,6 @@ local build_lines           -- forward declaration
 local verify_card_sets      -- forward declaration
 local check_front_line_limit -- forward declaration
 local build_remaining_hand  -- forward declaration
-local apply_front_line_final_def -- forward declaration
 local deploy_omega          -- forward declaration
 local append_deploy_client_actions -- forward declaration
 
@@ -65,13 +64,25 @@ local function main()
     state.alpha_front_line = front_line
     state.alpha_back_line  = back_line
 
-    apply_front_line_final_def(front_line, state.item_defs)
+    for _, deployed_card in ipairs(front_line) do
+        lib_battle_common.reset_card_turn_state(state.item_defs, deployed_card)
+    end
+    for _, deployed_card in ipairs(back_line) do
+        lib_battle_common.reset_card_turn_state(state.item_defs, deployed_card)
+    end
 
     local o_front, o_back, o_hand, ai_err = deploy_omega(state)
     if ai_err ~= nil then output.error = ai_err ; return end
     state.omega_front_line = o_front
     state.omega_back_line  = o_back
     state.omega_hand       = o_hand
+
+    for _, deployed_card in ipairs(o_front) do
+        lib_battle_common.reset_card_turn_state(state.item_defs, deployed_card)
+    end
+    for _, deployed_card in ipairs(o_back) do
+        lib_battle_common.reset_card_turn_state(state.item_defs, deployed_card)
+    end
 
     append_deploy_client_actions(state, front_line, back_line, o_front, o_back)
 
@@ -302,28 +313,6 @@ build_remaining_hand = function(alpha_hand)
         end
     end
     return remaining_hand
-end
-
--- Sets final_def on each character-type card in front_line from item def base_stats.def.
--- Ability-type cards are skipped (metadata.type ~= "character").
-apply_front_line_final_def = function(front_line, item_defs)
-    for _, card in ipairs(front_line) do
-        if card.inventory_item_id ~= nil and card.inventory_item_id ~= "" then
-            local item_def = nil
-            if item_defs ~= nil then
-                for _, def in ipairs(item_defs) do
-                    if def.item_code == card.item_definition_code_name then
-                        item_def = def
-                        break
-                    end
-                end
-            end
-            local is_character = item_def ~= nil and item_def.metadata ~= nil and item_def.metadata.type == "character"
-            if is_character then
-                card.final_def = (item_def.base_stats ~= nil and item_def.base_stats.def) or 0
-            end
-        end
-    end
 end
 
 -- Runs omega AI deploy and clears totem_pulse on hidden omega cards.
