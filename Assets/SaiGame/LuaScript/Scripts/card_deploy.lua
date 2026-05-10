@@ -161,7 +161,6 @@ local function main()
         end
     end
 
-    if state.client_actions == nil then state.client_actions = {} end
     for _, card in ipairs(front_line) do
         if card.inventory_item_id ~= nil and card.inventory_item_id ~= "" then
             table.insert(state.client_actions, "alpha_hand_to_front_line:" .. card.inventory_item_id .. "," .. (card.slot_index or 0))

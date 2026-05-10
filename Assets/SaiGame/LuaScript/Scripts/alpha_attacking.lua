@@ -185,7 +185,6 @@ if def_ability_err ~= nil then output.error = def_ability_err ; return end
 -- ---------------------------------------------------------------------------
 -- Client actions
 -- ---------------------------------------------------------------------------
-if state.client_actions == nil then state.client_actions = {} end
 local attacker_side = "alpha"
 local defender_side = (defender_side_void == "alpha_the_void") and "alpha" or "omega"
 table.insert(state.client_actions, attacker_side .. "_card_expose:" .. attacker_card.inventory_item_id)

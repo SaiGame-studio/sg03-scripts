@@ -155,6 +155,7 @@ build_state = function(enemy, selected_mode, battle_difficulty, player_the_sourc
             "alpha_source_spawn_card:" .. #player_the_source,
             "omega_source_spawn_card:" .. #enemy_the_source,
         },
+        omega_planning     = {},
     }
 end
 

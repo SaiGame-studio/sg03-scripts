@@ -178,7 +178,6 @@ function _deploy_easy(state)
     local hand = _rebuild_hand(state.omega_hand, deployed_ids)
     lib_battle_common.dlog("[lib_battle_ai] _deploy_easy: deployed " .. tostring(#deployed_ids) .. " card(s)")
 
-    if state.client_actions == nil then state.client_actions = {} end
     for _, front_card in ipairs(front_deployed) do
         if front_card.inventory_item_id ~= nil and front_card.inventory_item_id ~= "" then
             table.insert(state.client_actions, "omega_hand_to_front_line:" .. front_card.inventory_item_id .. "," .. (front_card.slot_index or 0))
@@ -283,7 +282,6 @@ function _deploy_normal(state)
     local hand = _rebuild_hand(state.omega_hand, deployed_ids)
     lib_battle_common.dlog("[lib_battle_ai] _deploy_normal: deployed " .. tostring(#deployed_ids) .. " new card(s)")
 
-    if state.client_actions == nil then state.client_actions = {} end
     for _, front_card in ipairs(front_deployed) do
         if front_card.inventory_item_id ~= nil and front_card.inventory_item_id ~= "" then
             table.insert(state.client_actions, "omega_hand_to_front_line:" .. front_card.inventory_item_id .. "," .. (front_card.slot_index or 0))
@@ -325,7 +323,6 @@ function _deploy_hard(state)
     local hand  = _rebuild_hand(state.omega_hand, deployed_ids)
     lib_battle_common.dlog("[lib_battle_ai] _deploy_hard: deployed " .. tostring(#deployed_ids) .. " new card(s)")
 
-    if state.client_actions == nil then state.client_actions = {} end
     for _, front_card in ipairs(front_cards) do
         if front_card.inventory_item_id ~= nil and front_card.inventory_item_id ~= "" then
             table.insert(state.client_actions, "omega_hand_to_front_line:" .. front_card.inventory_item_id .. "," .. (front_card.slot_index or 0))
@@ -460,7 +457,6 @@ function alpha_draw(state, card_count)
         end
     end
 
-    if state.client_actions == nil then state.client_actions = {} end
     for _, hand_card in ipairs(hand) do
         if hand_card.inventory_item_id ~= nil and hand_card.inventory_item_id ~= "" then
             table.insert(state.client_actions, "alpha_source_to_hand:" .. hand_card.inventory_item_id .. "," .. (hand_card.slot_index or 0))
@@ -539,7 +535,6 @@ function omega_draw(state, card_count)
         end
     end
 
-    if state.client_actions == nil then state.client_actions = {} end
     for _, hand_card in ipairs(hand) do
         if hand_card.inventory_item_id ~= nil and hand_card.inventory_item_id ~= "" then
             table.insert(state.client_actions, "omega_source_to_hand:" .. hand_card.inventory_item_id .. "," .. (hand_card.slot_index or 0))
@@ -596,9 +591,13 @@ function omega_planning_to_attack(state)
         return nil
     end
 
-    if state.client_actions == nil then state.client_actions = {} end
-    local attack_action = "omega_planing_attack:" .. omega_attacker.inventory_item_id .. "," .. alpha_defender.inventory_item_id
+    local attack_action = "omega_planing_character_attack:" .. omega_attacker.inventory_item_id .. "," .. alpha_defender.inventory_item_id
     table.insert(state.client_actions, attack_action)
+    local plan_entry = {}
+    plan_entry.action             = "character_attack"
+    plan_entry.attacker_inv_id   = omega_attacker.inventory_item_id
+    plan_entry.defender_inv_id   = alpha_defender.inventory_item_id
+    table.insert(state.omega_planning, plan_entry)
     lib_battle_common.dlog("[lib_battle_ai] omega_planning_to_attack: " .. attack_action)
 
     return nil
