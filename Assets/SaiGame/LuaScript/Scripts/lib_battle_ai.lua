@@ -559,11 +559,12 @@ function omega_planning_to_attack(state)
         return "omega_planning_to_attack: state must be a table"
     end
 
-    -- Pick first valid omega attacker from front line (must not be stunned).
+    -- Pick first valid omega attacker from front line (must be a character and not stunned).
     local omega_attacker = nil
     local omega_front_line = state.omega_front_line or {}
     for _, omega_card in ipairs(omega_front_line) do
         if omega_card.inventory_item_id ~= nil and omega_card.inventory_item_id ~= ""
+            and lib_battle_common.check_card_type(state.item_defs, omega_card, "character")
             and not lib_battle_common.is_card_stunned(omega_card) then
             omega_attacker = omega_card
             break

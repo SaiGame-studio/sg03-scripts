@@ -118,12 +118,19 @@ local function execute_card_attack_plan(state, plan_entry)
     local damage_dealt = compute_attack_damage(resolved.attacker_def)
     lib_battle_common.dlog("[alpha_defending_end] executing card_attack_card damage=" .. tostring(damage_dealt))
 
-    return lib_battle_common.card_attack_card(
+    local attack_err = lib_battle_common.card_attack_card(
         state,
         resolved.attacker_card, resolved.attacker_def, resolved.attacker_line_key,
         resolved.defender_card, resolved.defender_def, resolved.defender_line_key, resolved.defender_side_void,
         damage_dealt
     )
+    if attack_err ~= nil then return attack_err end
+
+    -- Animate attacker returning to its slot on the client.
+    local attacker_side = (string.sub(resolved.attacker_line_key, 1, 5) == "alpha") and "alpha" or "omega"
+    lib_battle_common.append_client_action(state, attacker_side .. "_card_move_back_to_holder:" .. resolved.attacker_card.inventory_item_id)
+
+    return nil
 end
 
 local function execute_plan_entry(state, plan_entry)
