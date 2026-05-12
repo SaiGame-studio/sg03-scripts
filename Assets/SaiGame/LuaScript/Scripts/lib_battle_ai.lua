@@ -599,7 +599,7 @@ function omega_planning_to_attack(state)
     local attack_action = "omega_planing_character_attack:" .. omega_attacker.inventory_item_id .. "," .. alpha_defender.inventory_item_id
     lib_battle_common.append_client_action(state, attack_action)
     local plan_entry = {}
-    plan_entry.action            = "character_attack"
+    plan_entry.action            = "card_attack_card"
     plan_entry.attacker_inv_id   = omega_attacker.inventory_item_id
     plan_entry.defender_inv_id   = alpha_defender.inventory_item_id
     table.insert(state.omega_planning, plan_entry)
