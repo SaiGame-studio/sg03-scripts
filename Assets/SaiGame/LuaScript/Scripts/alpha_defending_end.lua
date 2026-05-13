@@ -1,5 +1,6 @@
 require "lib_battle_common"
 require "lib_card_ability"
+require "lib_battle_ai"
 
 -- alpha_defending_end.lua
 -- Ends Alpha's defending phase by executing the queued Omega plan entries
@@ -108,7 +109,13 @@ end
 
 local function execute_card_attack_plan(state, plan_entry)
     local resolved, resolve_err = resolve_attack_plan(state, plan_entry)
-    if resolve_err ~= nil then return resolve_err end
+    if resolve_err ~= nil then
+        if string.find(resolve_err, "attacker card not found", 1, true) then
+            lib_battle_common.dlog("[alpha_defending_end] attacker no longer on field — alpha defending succeeded: " .. tostring(plan_entry.attacker_inv_id))
+            return nil
+        end
+        return resolve_err
+    end
 
     if resolved.attacker_card.trigger == true then
         lib_battle_common.dlog("[alpha_defending_end] attacker already triggered, skipping: " .. resolved.attacker_card.inventory_item_id)
@@ -173,7 +180,10 @@ local function main()
 
     -- ── Clear planning queue and exit defending phase ─────────────────────
     state.omega_planning  = {}
-    state.alpha_defending = false
+
+    -- ── Re-plan omega's next attack after executing this round's plan ─────
+    local next_plan_err = lib_battle_ai.omega_planning_to_attack(state)
+    if next_plan_err ~= nil then output.error = next_plan_err ; return end
 
     state.action     = (state.action or 0) + 1
     state.updated_at = ctx.timestamp
