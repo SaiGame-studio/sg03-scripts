@@ -1,6 +1,12 @@
 require "lib_battle_common"
 require "lib_card_ability"
 
+local run_enemy_defend        -- forward declaration
+local goblin_shaman_defending -- forward declaration
+local enemy_defend_dispatch   -- table: enemy_entity_key → defending function
+local apply_attack            -- forward declaration
+local commit_attack_result    -- forward declaration
+
 -- alpha_attacking.lua
 -- Applies attacker's base_atk as damage onto the defender card in the battle state.
 -- Accumulated damage is stored directly on the card object inside the session state.
@@ -24,16 +30,6 @@ local function validate_payload()
         return "missing defender_inventory_item_id"
     end
     return nil
-end
-
-local function resolve_session_id()
-    if payload.session_id ~= nil and payload.session_id ~= "" then
-        return payload.session_id, nil
-    end
-    local sid, sid_err = game.battle_session_current_id()
-    if sid_err ~= nil then return nil, sid_err end
-    if sid == nil or sid == "" then return nil, "no active battle session" end
-    return sid, nil
 end
 
 local function find_item_def(item_defs, code)
@@ -98,13 +94,11 @@ local function log_card_info(attacker_card, defender_card, attacker_def, defende
 end
 
 -- Computes final damage dealt by the attacker (includes debug override).
-local function compute_damage(is_development, attacker_def)
+local function compute_damage(attacker_def)
     local base_atk     = (attacker_def.base_stats and attacker_def.base_stats.atk) or 0
     local damage_dealt = base_atk
     damage_dealt = 10  -- To debug
-    if is_development then
-        lib_battle_common.dlog("base_atk=" .. base_atk .. " | damage_dealt (debug override)=" .. damage_dealt)
-    end
+    lib_battle_common.dlog("[alpha_attacking] compute_damage: base_atk=" .. base_atk .. " damage_dealt(debug override)=" .. damage_dealt)
     return damage_dealt
 end
 
@@ -119,13 +113,12 @@ end
 -- Returns: session_id, state, attacker_card, attacker_line_key, attacker_def,
 --          defender_card, defender_line_key, defender_side_void, defender_def, err
 local function load_attack_context()
-    local session_id, session_err = resolve_session_id()
+    local session_id, session_err = lib_battle_common.resolve_session_id()
     if session_err ~= nil then return nil, nil, nil, nil, nil, nil, nil, nil, nil, session_err end
     if session_id == nil then return nil, nil, nil, nil, nil, nil, nil, nil, nil, "failed to resolve session_id" end
 
-    local state, state_err = game.battle_session_get(session_id)
+    local state, state_err = lib_battle_common.load_session(session_id)
     if state_err ~= nil then return nil, nil, nil, nil, nil, nil, nil, nil, nil, state_err end
-    if state == nil then return nil, nil, nil, nil, nil, nil, nil, nil, nil, "battle session not found" end
 
     local attacker_card, attacker_line_key, defender_card, defender_line_key, defender_side_void = resolve_cards(state)
     if attacker_card == nil then return nil, nil, nil, nil, nil, nil, nil, nil, nil, "attacker card not found in any battle line" end
@@ -139,9 +132,206 @@ local function load_attack_context()
            defender_card, defender_line_key, defender_side_void, defender_def, nil
 end
 
--- ---------------------------------------------------------------------------
+-- ─── Enemy-specific defending reactions ────────────────────────────────────────────
+
+-- Searches back_line for cards matching code_name.
+-- Returns the first exposed card (expose==true) if found; otherwise the first unexposed card.
+-- Returns nil if no match exists.
+local function find_back_line_card_prefer_exposed(back_line, code_name)
+    lib_battle_common.dlog("[alpha_attacking] searching back_line (count=" .. #back_line .. ") for code=" .. code_name .. " (prefer exposed)")
+    local unexposed_fallback = nil
+    for _, back_card in ipairs(back_line) do
+        local card_id      = back_card.inventory_item_id or ""
+        local card_code    = back_card.item_definition_code_name or ""
+        local card_exposed = back_card.expose == true
+        lib_battle_common.dlog("[alpha_attacking] checking back_line card: id=" .. card_id .. " code=" .. card_code .. " expose=" .. tostring(back_card.expose))
+        if card_id == "" then
+            lib_battle_common.dlog("[alpha_attacking] skip: no inventory_item_id")
+        elseif card_code ~= code_name then
+            lib_battle_common.dlog("[alpha_attacking] skip: code mismatch (want=" .. code_name .. ")")
+        elseif card_exposed then
+            lib_battle_common.dlog("[alpha_attacking] found exposed match: id=" .. card_id)
+            return back_card
+        else
+            lib_battle_common.dlog("[alpha_attacking] found unexposed match (saved as fallback): id=" .. card_id)
+            if unexposed_fallback == nil then
+                unexposed_fallback = back_card
+            end
+        end
+    end
+    if unexposed_fallback ~= nil then
+        lib_battle_common.dlog("[alpha_attacking] using unexposed fallback: id=" .. unexposed_fallback.inventory_item_id)
+    end
+    return unexposed_fallback
+end
+
+-- Returns true if pending_attack targets a card on omega_front_line AND deals positive damage.
+-- Used to decide whether a defend reaction should activate.
+local function is_omega_front_line_taking_damage(state)
+    local pending_atk = state.pending_attack
+    if pending_atk == nil then
+        lib_battle_common.dlog("[alpha_attacking] is_omega_front_line_taking_damage: no pending_attack")
+        return false
+    end
+    local damage = pending_atk.damage_dealt or 0
+    if damage <= 0 then
+        lib_battle_common.dlog("[alpha_attacking] is_omega_front_line_taking_damage: damage_dealt=" .. damage .. " (no damage)")
+        return false
+    end
+    local defender_id      = pending_atk.defender_inventory_item_id or ""
+    local omega_front_line = state.omega_front_line or {}
+    for _, front_card in ipairs(omega_front_line) do
+        if front_card.inventory_item_id == defender_id then
+            lib_battle_common.dlog("[alpha_attacking] is_omega_front_line_taking_damage: defender=" .. defender_id .. " on omega_front_line damage=" .. damage)
+            return true
+        end
+    end
+    lib_battle_common.dlog("[alpha_attacking] is_omega_front_line_taking_damage: defender=" .. defender_id .. " not on omega_front_line, skip")
+    return false
+end
+
+-- Triggers an on_defend ability on source_card, appends resulting actions into state.
+-- Returns err or nil.
+local function trigger_defend_ability(state, source_card, ability_key)
+    local source_item_def = find_item_def(state.item_defs, ability_key)
+    local def_add         = (source_item_def ~= nil and source_item_def.base_stats and source_item_def.base_stats.def_add) or 0
+    lib_battle_common.dlog("[alpha_attacking] trigger_defend_ability: id=" .. source_card.inventory_item_id .. " ability=" .. ability_key .. " def_add=" .. def_add)
+    lib_battle_common.dlog("[alpha_attacking] pending_attack.damage_dealt=" .. tostring(state.pending_attack ~= nil and state.pending_attack.damage_dealt or "nil"))
+    local defend_event_data = {}
+    defend_event_data.pending_attack = state.pending_attack
+    local ability_actions, ability_err = lib_card_ability.trigger_ability_by_key(state, source_card, ability_key, "on_defend", defend_event_data)
+    if ability_err ~= nil then
+        lib_battle_common.dlog("[alpha_attacking] ability error: " .. ability_err)
+        return ability_err
+    end
+    lib_battle_common.dlog("[alpha_attacking] ability_actions count=" .. #ability_actions)
+    for _, ability_action in ipairs(ability_actions) do
+        lib_battle_common.append_client_action(state, ability_action)
+    end
+    return nil
+end
+
+-- Logs the final_def of every card in the given front line (for post-buff inspection).
+local function log_front_line_def(front_line, label)
+    lib_battle_common.dlog("[alpha_attacking] " .. label .. " front_line def (count=" .. #front_line .. "):")
+    for _, front_card in ipairs(front_line) do
+        local front_id   = front_card.inventory_item_id or ""
+        local front_code = front_card.item_definition_code_name or ""
+        local front_def  = front_card.final_def or 0
+        lib_battle_common.dlog("[alpha_attacking]   id=" .. front_id .. " code=" .. front_code .. " final_def=" .. front_def)
+    end
+end
+
+goblin_shaman_defending = function(state)
+    lib_battle_common.dlog("[alpha_attacking] == goblin_shaman_defending ==")
+    if not is_omega_front_line_taking_damage(state) then
+        lib_battle_common.dlog("[alpha_attacking] goblin_shaman_defending: attack does not damage omega front-line, skip totem")
+        return nil
+    end
+    local omega_back_line = state.omega_back_line or {}
+    local totem_card = find_back_line_card_prefer_exposed(omega_back_line, "totem_pulse")
+    if totem_card == nil then
+        lib_battle_common.dlog("[alpha_attacking] goblin_shaman_defending: no totem_pulse in back_line, skip")
+        return nil
+    end
+    local ability_err = trigger_defend_ability(state, totem_card, "totem_pulse")
+    if ability_err ~= nil then return ability_err end
+    log_front_line_def(state.omega_front_line or {}, "omega")
+    lib_battle_common.dlog("[alpha_attacking] goblin_shaman_defending done")
+    return nil
+end
+
+enemy_defend_dispatch = {
+    goblin_shaman = goblin_shaman_defending,
+}
+
+-- Dispatches to the enemy-specific defending function after alpha's attack resolves.
+-- Returns err or nil.
+run_enemy_defend = function(session_id, state)
+    lib_battle_common.dlog("[alpha_attacking] == phase 2: omega defending ==")
+    local enemy_key = state.metadata ~= nil and state.metadata.enemy_entity_key or nil
+    lib_battle_common.dlog("[alpha_attacking] enemy_entity_key=" .. tostring(enemy_key))
+    local defend_fn = enemy_key ~= nil and enemy_defend_dispatch[enemy_key] or nil
+    if defend_fn == nil then
+        lib_battle_common.dlog("[alpha_attacking] no defend function for enemy_key=" .. tostring(enemy_key) .. ", skipping")
+        return nil
+    end
+    return defend_fn(state)
+end
+
+-- Phase 1: compute planned damage and store in state.pending_attack.
+-- Omega can read/modify state.pending_attack during phase 2 before damage is applied.
+local function plan_alpha_attack(state,
+    attacker_card, attacker_def,
+    defender_card, defender_def, defender_line_key, defender_side_void)
+    lib_battle_common.dlog("[alpha_attacking] == phase 1: planning attack ==")
+    log_card_info(attacker_card, defender_card, attacker_def, defender_def, defender_line_key, defender_side_void)
+    local damage_dealt = compute_damage(attacker_def)
+    lib_battle_common.dlog("[alpha_attacking] planned damage_dealt=" .. damage_dealt)
+    local pending_atk = {}
+    pending_atk.attacker_inventory_item_id = attacker_card.inventory_item_id
+    pending_atk.defender_inventory_item_id = defender_card.inventory_item_id
+    pending_atk.damage_dealt               = damage_dealt
+    state.pending_attack = pending_atk
+    lib_battle_common.dlog("[alpha_attacking] pending_attack stored: attacker=" .. pending_atk.attacker_inventory_item_id .. " defender=" .. pending_atk.defender_inventory_item_id)
+end
+
+-- Phase 3: apply the (possibly modified) pending_attack onto the defender card.
+-- Returns err or nil.
+local function resolve_alpha_attack(state,
+    attacker_card, attacker_line_key, attacker_def,
+    defender_card, defender_def, defender_line_key, defender_side_void)
+    lib_battle_common.dlog("[alpha_attacking] == phase 3: resolving attack ==")
+    local pending_atk  = state.pending_attack
+    local final_damage = pending_atk ~= nil and pending_atk.damage_dealt or 0
+    lib_battle_common.dlog("[alpha_attacking] final_damage=" .. final_damage)
+    local attack_err = lib_battle_common.card_attack_card(
+        state,
+        attacker_card, attacker_def, attacker_line_key,
+        defender_card, defender_def, defender_line_key, defender_side_void,
+        final_damage
+    )
+    if attack_err ~= nil then return attack_err end
+    state.pending_attack = nil
+    log_defender_status(defender_card)
+    return nil
+end
+
+-- Orchestrates all 3 phases: plan → omega defend → resolve.
+-- Returns err or nil.
+apply_attack = function(session_id, state,
+    attacker_card, attacker_line_key, attacker_def,
+    defender_card, defender_line_key, defender_side_void, defender_def)
+    lib_battle_common.dlog("session_id=" .. session_id)
+    plan_alpha_attack(state,
+        attacker_card, attacker_def,
+        defender_card, defender_def, defender_line_key, defender_side_void)
+    local defend_err = run_enemy_defend(session_id, state)
+    if defend_err ~= nil then return defend_err end
+    local resolve_err = resolve_alpha_attack(state,
+        attacker_card, attacker_line_key, attacker_def,
+        defender_card, defender_def, defender_line_key, defender_side_void)
+    if resolve_err ~= nil then return resolve_err end
+    return nil
+end
+
+-- Increments action counter, saves session, and calls battle_status.
+-- Returns err or nil.
+commit_attack_result = function(session_id, state, is_development)
+    state.action     = (state.action or 0) + 1
+    state.updated_at = ctx.timestamp
+    local save_err = game.battle_session_update(session_id, state)
+    if save_err ~= nil then return "failed to save battle state: " .. save_err end
+    if is_development then
+        lib_battle_common.dlog("total client_actions=" .. #state.client_actions)
+    end
+    lib_battle_common.battle_status()
+    return nil
+end
+
+-- ────────────────────────────────────────────────────────────────────────────
 -- Main
--- ---------------------------------------------------------------------------
+-- ────────────────────────────────────────────────────────────────────────────
 
 local function main()
     local payload_err = validate_payload()
@@ -152,37 +342,18 @@ local function main()
           defender_card, defender_line_key, defender_side_void, defender_def,
           ctx_err = load_attack_context()
     if ctx_err ~= nil then output.error = ctx_err ; return end
-    if session_id == nil or state == nil then output.error = "failed to load attack context" ; return end
 
     local is_development = ctx.game ~= nil and ctx.game.status == "development"
-    lib_battle_common.dlog("session_id=" .. session_id)
-    if is_development then
-        log_card_info(attacker_card, defender_card, attacker_def, defender_def, defender_line_key, defender_side_void)
-    end
 
-    local damage_dealt = compute_damage(is_development, attacker_def)
-
-    local attack_err = lib_battle_common.card_attack_card(
-        state,
-        attacker_card, attacker_def, attacker_line_key,
-        defender_card, defender_def, defender_line_key, defender_side_void,
-        damage_dealt
+    local attack_err = apply_attack(
+        session_id, state,
+        attacker_card, attacker_line_key, attacker_def,
+        defender_card, defender_line_key, defender_side_void, defender_def
     )
     if attack_err ~= nil then output.error = attack_err ; return end
 
-    if is_development then log_defender_status(defender_card) end
-
-    state.action     = (state.action or 0) + 1
-    state.updated_at = ctx.timestamp
-
-    local save_err = game.battle_session_update(session_id, state)
-    if save_err ~= nil then output.error = "failed to save battle state: " .. save_err ; return end
-
-    if is_development then
-        lib_battle_common.dlog("total client_actions=" .. #state.client_actions)
-    end
-
-    lib_battle_common.battle_status()
+    local commit_err = commit_attack_result(session_id, state, is_development)
+    if commit_err ~= nil then output.error = commit_err ; return end
 end
 
 main()

@@ -15,7 +15,7 @@
 -- }
 -- session_id is optional; omit to use the current active session.
 
-local resolve_session_id    -- forward declaration
+local resolve_session_id            -- forward declaration
 local load_session                  -- forward declaration
 local collect_codes_from            -- forward declaration
 local collect_codes                 -- forward declaration
@@ -49,6 +49,7 @@ end
 
 -- ─── Functions ───────────────────────────────────────────────────────────────
 
+-- Appends unique code values from slot_list into codes.
 resolve_session_id = function()
     if payload.session_id ~= nil and payload.session_id ~= "" then
         return payload.session_id, nil

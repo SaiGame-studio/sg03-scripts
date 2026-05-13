@@ -4,23 +4,6 @@ require "lib_battle_ai"
 -- alpha_turn_end.lua
 -- End-of-turn cleanup for Alpha's turn.
 
-local function resolve_session_id()
-    if payload.session_id ~= nil and payload.session_id ~= "" then
-        return payload.session_id, nil
-    end
-    local sid, sid_err = game.battle_session_current_id()
-    if sid_err ~= nil then return nil, sid_err end
-    if sid == nil or sid == "" then return nil, "no active battle session" end
-    return sid, nil
-end
-
-local function load_battle_state(session_id)
-    local state, state_err = game.battle_session_get(session_id)
-    if state_err ~= nil then return nil, state_err end
-    if state == nil then return nil, "battle session not found" end
-    return state, nil
-end
-
 local function handoff_lamp_to_omega(state)
     if state.client_actions == nil then state.client_actions = {} end
     lib_battle_common.append_client_action(state, "omega_take_lamp")
@@ -68,10 +51,10 @@ local function persist_battle_state(session_id, state)
 end
 
 local function main()
-    local session_id, sid_err = resolve_session_id()
+    local session_id, sid_err = lib_battle_common.resolve_session_id()
     if sid_err ~= nil then output.error = sid_err ; return end
 
-    local state, state_err = load_battle_state(session_id)
+    local state, state_err = lib_battle_common.load_session(session_id)
     if state_err ~= nil then output.error = state_err ; return end
     lib_battle_common.dlog("[alpha_turn_end] session loaded: " .. session_id)
 

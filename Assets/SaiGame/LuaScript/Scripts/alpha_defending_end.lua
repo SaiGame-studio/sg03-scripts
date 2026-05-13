@@ -14,16 +14,6 @@ require "lib_battle_ai"
 -- Helpers
 -- ---------------------------------------------------------------------------
 
-local function resolve_session_id()
-    if payload.session_id ~= nil and payload.session_id ~= "" then
-        return payload.session_id, nil
-    end
-    local sid, sid_err = game.battle_session_current_id()
-    if sid_err ~= nil then return nil, sid_err end
-    if sid == nil or sid == "" then return nil, "no active battle session" end
-    return sid, nil
-end
-
 local function find_item_def(item_defs, code)
     if item_defs == nil then return nil end
     for _, item_def in ipairs(item_defs) do
@@ -167,12 +157,11 @@ end
 -- ---------------------------------------------------------------------------
 
 local function main()
-    local session_id, session_err = resolve_session_id()
+    local session_id, session_err = lib_battle_common.resolve_session_id()
     if session_err ~= nil then output.error = session_err ; return end
 
-    local state, state_err = game.battle_session_get(session_id)
+    local state, state_err = lib_battle_common.load_session(session_id)
     if state_err ~= nil then output.error = state_err ; return end
-    if state == nil then output.error = "battle session not found" ; return end
     lib_battle_common.dlog("[alpha_defending_end] session loaded: " .. session_id)
 
     local plan_err = execute_omega_planning(state)
