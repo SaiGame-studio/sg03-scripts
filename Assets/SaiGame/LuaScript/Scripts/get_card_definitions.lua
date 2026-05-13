@@ -15,18 +15,16 @@
 -- }
 -- session_id is optional; omit to use the current active session.
 
-local resolve_session_id    -- forward declaration
-local load_session                  -- forward declaration
 local collect_codes_from            -- forward declaration
 local collect_codes                 -- forward declaration
 local fetch_definitions             -- forward declaration
 local fetch_behavior_definitions    -- forward declaration
 
 local function main()
-    local session_id, sid_err = resolve_session_id()
+    local session_id, sid_err = lib_battle_common.resolve_session_id()
     if sid_err ~= nil then output.error = sid_err ; return end
 
-    local state, load_err = load_session(session_id)
+    local state, load_err = lib_battle_common.load_session(session_id)
     if load_err ~= nil then output.error = load_err ; return end
 
     local codes = collect_codes(state)
@@ -48,23 +46,6 @@ local function main()
 end
 
 -- ─── Functions ───────────────────────────────────────────────────────────────
-
-resolve_session_id = function()
-    if payload.session_id ~= nil and payload.session_id ~= "" then
-        return payload.session_id, nil
-    end
-    local sid, err = game.battle_session_current_id()
-    if err ~= nil then return nil, err end
-    if sid == nil or sid == "" then return nil, "no active battle session found" end
-    return sid, nil
-end
-
-load_session = function(session_id)
-    local state, err = game.battle_session_get(session_id)
-    if err ~= nil then return nil, err end
-    if state == nil then return nil, "battle session not found" end
-    return state, nil
-end
 
 -- Appends unique code values from slot_list into codes.
 -- key specifies which field on each slot holds the code name.

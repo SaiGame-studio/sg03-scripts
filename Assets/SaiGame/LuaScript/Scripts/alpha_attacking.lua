@@ -26,16 +26,6 @@ local function validate_payload()
     return nil
 end
 
-local function resolve_session_id()
-    if payload.session_id ~= nil and payload.session_id ~= "" then
-        return payload.session_id, nil
-    end
-    local sid, sid_err = game.battle_session_current_id()
-    if sid_err ~= nil then return nil, sid_err end
-    if sid == nil or sid == "" then return nil, "no active battle session" end
-    return sid, nil
-end
-
 local function find_item_def(item_defs, code)
     if item_defs == nil then return nil end
     for _, item_def in ipairs(item_defs) do
@@ -119,13 +109,12 @@ end
 -- Returns: session_id, state, attacker_card, attacker_line_key, attacker_def,
 --          defender_card, defender_line_key, defender_side_void, defender_def, err
 local function load_attack_context()
-    local session_id, session_err = resolve_session_id()
+    local session_id, session_err = lib_battle_common.resolve_session_id()
     if session_err ~= nil then return nil, nil, nil, nil, nil, nil, nil, nil, nil, session_err end
     if session_id == nil then return nil, nil, nil, nil, nil, nil, nil, nil, nil, "failed to resolve session_id" end
 
-    local state, state_err = game.battle_session_get(session_id)
+    local state, state_err = lib_battle_common.load_session(session_id)
     if state_err ~= nil then return nil, nil, nil, nil, nil, nil, nil, nil, nil, state_err end
-    if state == nil then return nil, nil, nil, nil, nil, nil, nil, nil, nil, "battle session not found" end
 
     local attacker_card, attacker_line_key, defender_card, defender_line_key, defender_side_void = resolve_cards(state)
     if attacker_card == nil then return nil, nil, nil, nil, nil, nil, nil, nil, nil, "attacker card not found in any battle line" end

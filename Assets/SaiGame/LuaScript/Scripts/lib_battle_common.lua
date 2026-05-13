@@ -122,6 +122,27 @@ function hide_unrevealed_omega_cards(state)
     end
 end
 
+-- ─── Session helpers ──────────────────────────────────────────────────────────
+
+-- Returns session_id from payload.session_id if provided, otherwise fetches the current active session.
+function resolve_session_id()
+    if payload.session_id ~= nil and payload.session_id ~= "" then
+        return payload.session_id, nil
+    end
+    local sid, sid_err = game.battle_session_current_id()
+    if sid_err ~= nil then return nil, sid_err end
+    if sid == nil or sid == "" then return nil, "no active battle session found" end
+    return sid, nil
+end
+
+-- Loads and returns battle session state for the given session_id.
+function load_session(session_id)
+    local state, err = game.battle_session_get(session_id)
+    if err ~= nil then return nil, err end
+    if state == nil then return nil, "battle session not found" end
+    return state, nil
+end
+
 -- ─── battle_status helpers ────────────────────────────────────────────────────
 
 local function resolve_battle_session()
@@ -180,14 +201,13 @@ local function build_card_action_list(state)
 end
 
 local function write_battle_meta_output(state)
-    output.turn             = state.turn
-    output.action           = state.action
-    output.status           = state.status
-    output.next_move        = state.metadata ~= nil and state.metadata.next_move or nil
-    output.battle_difficulty = state.metadata ~= nil and state.metadata.battle_difficulty or nil
-    output.omega_planning   = state.omega_planning
-    output.alpha_defending  = state.alpha_defending
-    output.client_actions   = state.client_actions
+    output.turn            = state.turn
+    output.action          = state.action
+    output.status          = state.status
+    output.metadata        = state.metadata
+    output.omega_planning  = state.omega_planning
+    output.alpha_defending = state.alpha_defending
+    output.client_actions  = state.client_actions
 end
 
 -- ─── battle_status ───────────────────────────────────────────────────────────

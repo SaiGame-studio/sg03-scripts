@@ -138,6 +138,7 @@ build_state = function(enemy, selected_mode, battle_difficulty, player_the_sourc
             alpha_id           = ctx.player_id,
             preset_instance_id = payload.preset_instance_id,
             omega              = enemy,
+            enemy_entity_key   = payload.enemy_entity_key,
             battle_mode        = selected_mode,
             battle_difficulty  = battle_difficulty,
             started_at         = ctx.timestamp,

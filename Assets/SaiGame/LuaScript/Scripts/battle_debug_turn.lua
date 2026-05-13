@@ -14,7 +14,6 @@
 -- hp: positive value heals the target, negative value damages the target
 
 local validate_payload  -- forward declaration
-local load_session      -- forward declaration
 local apply_hp_delta    -- forward declaration
 
 local function main()
@@ -24,7 +23,7 @@ local function main()
     local session_id, session_err = game.battle_session_current_id()
     if session_id == nil or session_id == "" then output.error = "current battle session not found" ; return end
 
-    local state, load_err = load_session(session_id)
+    local state, load_err = lib_battle_common.load_session(session_id)
     if load_err ~= nil then output.error = load_err ; return end
 
     local result, apply_err = apply_hp_delta(session_id, state, payload.target, payload.hp)
@@ -47,13 +46,6 @@ validate_payload = function()
         return "hp is required"
     end
     return nil
-end
-
-load_session = function(session_id)
-    local state, err = game.battle_session_get(session_id)
-    if err ~= nil then return nil, err end
-    if state == nil then return nil, "battle session not found" end
-    return state, nil
 end
 
 apply_hp_delta = function(session_id, state, target, hp_delta)
