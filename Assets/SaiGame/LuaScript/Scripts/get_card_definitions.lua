@@ -16,10 +16,11 @@
 -- session_id is optional; omit to use the current active session.
 
 local resolve_session_id    -- forward declaration
-local load_session          -- forward declaration
-local collect_codes_from    -- forward declaration
-local collect_codes         -- forward declaration
-local fetch_definitions     -- forward declaration
+local load_session                  -- forward declaration
+local collect_codes_from            -- forward declaration
+local collect_codes                 -- forward declaration
+local fetch_definitions             -- forward declaration
+local fetch_behavior_definitions    -- forward declaration
 
 local function main()
     local session_id, sid_err = resolve_session_id()
@@ -32,6 +33,9 @@ local function main()
 
     local defs, fetch_err = fetch_definitions(codes)
     if fetch_err ~= nil then output.error = fetch_err ; return end
+
+    local behavior_err = fetch_behavior_definitions(defs)
+    if behavior_err ~= nil then output.error = behavior_err ; return end
 
     state.item_defs = defs
     local save_err = game.battle_session_update(session_id, state)
@@ -97,6 +101,37 @@ fetch_definitions = function(codes)
     local defs, err = game.get_item_defs_by_codes(codes)
     if err ~= nil then return nil, err end
     return defs or {}, nil
+end
+
+-- Collects metadata.behavior codes from already-fetched defs, loads their
+-- definitions, and appends any new ones into defs (in-place).
+fetch_behavior_definitions = function(defs)
+    local seen_codes = {}
+    for _, existing_def in ipairs(defs) do
+        if existing_def.item_code ~= nil then
+            seen_codes[existing_def.item_code] = true
+        end
+    end
+
+    local behavior_codes = {}
+    for _, card_def in ipairs(defs) do
+        local behavior_code = card_def.metadata ~= nil and card_def.metadata.behavior or nil
+        if behavior_code ~= nil and behavior_code ~= "" and not seen_codes[behavior_code] then
+            seen_codes[behavior_code]                = true
+            behavior_codes[#behavior_codes + 1]     = behavior_code
+        end
+    end
+
+    if #behavior_codes == 0 then return nil end
+
+    local behavior_defs, fetch_err = game.get_item_defs_by_codes(behavior_codes)
+    if fetch_err ~= nil then return fetch_err end
+    behavior_defs = behavior_defs or {}
+
+    for _, behavior_def in ipairs(behavior_defs) do
+        defs[#defs + 1] = behavior_def
+    end
+    return nil
 end
 
 main()

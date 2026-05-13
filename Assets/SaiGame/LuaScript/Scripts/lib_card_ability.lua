@@ -18,7 +18,7 @@
 local _known_abilities = {
     twin_reaper    = { event = "on_attack"  },   -- also strikes the card to the right of the target (fallback: left)
     spinning_slash = { event = "on_attack"  },   -- requires azure_blade in front-line; deals attacker.metadata.atk_add + azure_blade.metadata.atk
-    cross_guard    = {},                          -- increases target's final_def by 200 (triggered directly as ability-type card)
+    cross_guard    = { event = "on_attack"  },   -- increases target's final_def by 200 (triggered directly as ability-type card)
 }
 
 -- ─── Internal helpers ─────────────────────────────────────────────────────────
@@ -192,7 +192,8 @@ local function _handle_twin_reaper(state, attacker_card, event_data)
     local damage        = (attacker_def ~= nil and attacker_def.base_stats and attacker_def.base_stats.atk) or 1
     lib_battle_common.dlog("[ability] twin_reaper: target=" .. target.inventory_item_id .. " slot=" .. (target.slot_index or 0) .. " damage=" .. damage)
 
-    local ability_actions = { "card_ability:" .. attacker_card.inventory_item_id .. ",twin_reaper," .. target.inventory_item_id }
+    local attacker_side   = _find_card_side(state, attacker_card)
+    local ability_actions = { attacker_side .. "_card_ability:" .. attacker_card.inventory_item_id .. ",twin_reaper," .. target.inventory_item_id }
     local damage_actions, dmg_err = deal_damage_to_character(state, attacker_card, target, damage, defender_line, void_key)
     if dmg_err ~= nil then return ability_actions, dmg_err end
     for _, action in ipairs(damage_actions) do
@@ -242,7 +243,7 @@ local function _handle_spinning_slash(state, attacker_card, event_data)
     lib_battle_common.dlog("[ability] spinning_slash: azure_blade=" .. azure_blade_card.inventory_item_id .. " atk_add=" .. atk_add .. " blade_atk=" .. blade_atk .. " total_damage=" .. damage)
 
     local defender_line = line_key ~= nil and state[line_key] or nil
-    local ability_actions = { "card_ability:" .. attacker_card.inventory_item_id .. ",spinning_slash," .. defender.inventory_item_id }
+    local ability_actions = { attacker_side .. "_card_ability:" .. attacker_card.inventory_item_id .. ",spinning_slash," .. defender.inventory_item_id }
     local damage_actions, dmg_err = deal_damage_to_character(state, azure_blade_card, defender, damage, defender_line, void_key)
     if dmg_err ~= nil then return ability_actions, dmg_err end
     for _, action in ipairs(damage_actions) do
@@ -263,7 +264,8 @@ local function _handle_cross_guard(state, source_card, event_data)
     local prev_def = target_card.final_def or 0
     target_card.final_def = prev_def + guard_bonus
     lib_battle_common.dlog("[ability] cross_guard: target=" .. target_card.inventory_item_id .. " final_def " .. prev_def .. " -> " .. target_card.final_def)
-    local guard_actions = { "card_ability:" .. source_card.inventory_item_id .. ",cross_guard," .. target_card.inventory_item_id }
+    local source_side   = _find_card_side(state, source_card)
+    local guard_actions = { source_side .. "_card_ability:" .. source_card.inventory_item_id .. ",cross_guard," .. target_card.inventory_item_id }
     return guard_actions, nil
 end
 

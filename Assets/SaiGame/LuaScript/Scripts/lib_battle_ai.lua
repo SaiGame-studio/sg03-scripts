@@ -559,12 +559,14 @@ function omega_planning_to_attack(state)
         return "omega_planning_to_attack: state must be a table"
     end
 
-    -- Pick first valid omega attacker from front line (must not be stunned).
+    -- Pick first valid omega attacker from front line (must be a character, not stunned, and not yet triggered).
     local omega_attacker = nil
     local omega_front_line = state.omega_front_line or {}
     for _, omega_card in ipairs(omega_front_line) do
         if omega_card.inventory_item_id ~= nil and omega_card.inventory_item_id ~= ""
-            and not lib_battle_common.is_card_stunned(omega_card) then
+            and lib_battle_common.check_card_type(state.item_defs, omega_card, "character")
+            and not lib_battle_common.is_card_stunned(omega_card)
+            and omega_card.trigger ~= true then
             omega_attacker = omega_card
             break
         end
@@ -599,11 +601,13 @@ function omega_planning_to_attack(state)
     local attack_action = "omega_planing_character_attack:" .. omega_attacker.inventory_item_id .. "," .. alpha_defender.inventory_item_id
     lib_battle_common.append_client_action(state, attack_action)
     local plan_entry = {}
-    plan_entry.action            = "character_attack"
+    plan_entry.action            = "card_attack_card"
     plan_entry.attacker_inv_id   = omega_attacker.inventory_item_id
     plan_entry.defender_inv_id   = alpha_defender.inventory_item_id
     table.insert(state.omega_planning, plan_entry)
     lib_battle_common.dlog("[lib_battle_ai] omega_planning_to_attack: " .. attack_action)
+
+    state.alpha_defending = true
 
     return nil
 end

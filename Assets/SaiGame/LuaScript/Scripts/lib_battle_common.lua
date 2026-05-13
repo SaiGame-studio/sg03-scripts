@@ -210,3 +210,95 @@ function battle_status()
     -- output.item_defs_actions = build_card_action_list(state)
     write_battle_meta_output(state)
 end
+
+-- ─── card_attack_card helpers ────────────────────────────────────────────────
+
+local function side_from_line_key(line_key)
+    if line_key == nil then return "alpha" end
+    if string.sub(line_key, 1, 5) == "alpha" then return "alpha" end
+    return "omega"
+end
+
+local function expose_attack_pair(attacker_card, defender_card)
+    attacker_card.face_up = true
+    attacker_card.expose  = true
+    defender_card.face_up = true
+    defender_card.expose  = true
+end
+
+local function fire_on_attack(state, attacker_card, attacker_def, defender_card, defender_def, defender_line_key, defender_side_void, damage_dealt)
+    local atk_event_data = {}
+    atk_event_data.defender_card      = defender_card
+    atk_event_data.damage_dealt       = damage_dealt
+    atk_event_data.attacker_def       = attacker_def
+    atk_event_data.defender_def       = defender_def
+    atk_event_data.defender_line_key  = defender_line_key
+    atk_event_data.defender_side_void = defender_side_void
+
+    if attacker_def.metadata ~= nil and attacker_def.metadata.type == "ability" then
+        local ability_key = attacker_card.item_definition_code_name
+        return lib_card_ability.trigger_ability_by_key(state, attacker_card, ability_key, "on_attack", atk_event_data)
+    end
+    return lib_card_ability.trigger_card_ability(state, attacker_card, "on_attack", atk_event_data)
+end
+
+local function fire_on_damaged(state, attacker_card, attacker_def, defender_card, defender_def, damage_dealt)
+    local def_event_data = {}
+    def_event_data.attacker_card   = attacker_card
+    def_event_data.damage_received = damage_dealt
+    def_event_data.attacker_def    = attacker_def
+    def_event_data.defender_def    = defender_def
+    return lib_card_ability.trigger_card_ability(state, defender_card, "on_damaged", def_event_data)
+end
+
+local function append_attack_client_actions(state, attacker_side, defender_side, attacker_card, defender_card, dmg_actions, atk_actions, def_actions)
+    lib_battle_common.append_client_action(state, attacker_side .. "_card_expose:" .. attacker_card.inventory_item_id)
+    lib_battle_common.append_client_action(state, defender_side .. "_card_expose:" .. defender_card.inventory_item_id)
+    lib_battle_common.append_client_action(state, attacker_side .. "_attack:" .. attacker_card.inventory_item_id .. "," .. defender_card.inventory_item_id)
+    for _, action in ipairs(dmg_actions) do lib_battle_common.append_client_action(state, action) end
+    for _, action in ipairs(atk_actions) do lib_battle_common.append_client_action(state, action) end
+    for _, action in ipairs(def_actions) do lib_battle_common.append_client_action(state, action) end
+end
+
+local function send_ability_attacker_to_void(state, attacker_card, attacker_line_key, attacker_def, attacker_side)
+    if attacker_def.metadata == nil or attacker_def.metadata.type ~= "ability" then return end
+    local attacker_void_key = attacker_side .. "_the_void"
+    lib_battle_common.remove_card_from_line(state[attacker_line_key], attacker_card.inventory_item_id)
+    if state[attacker_void_key] == nil then state[attacker_void_key] = {} end
+    table.insert(state[attacker_void_key], attacker_card)
+    lib_battle_common.append_client_action(state, attacker_side .. "_card_sent_to_void:" .. attacker_card.inventory_item_id)
+    lib_battle_common.dlog("attacker is ability-type, sent to " .. attacker_void_key .. ": " .. attacker_card.inventory_item_id)
+end
+
+-- ─── card_attack_card ────────────────────────────────────────────────────────
+-- Reusable: makes one card attack another. Handles expose, damage application,
+-- attacker.trigger flag, on_attack / on_damaged ability triggers, client action
+-- accumulation, and moves an ability-type attacker to its side's void.
+-- Sides are inferred from attacker_line_key and defender_side_void.
+-- Returns: err (nil on success).
+function card_attack_card(state, attacker_card, attacker_def, attacker_line_key, defender_card, defender_def, defender_line_key, defender_side_void, damage_dealt)
+    lib_battle_common.dlog("== card_attack_card ==")
+    local attacker_side = side_from_line_key(attacker_line_key)
+    local defender_side = (defender_side_void == "alpha_the_void") and "alpha" or "omega"
+
+    expose_attack_pair(attacker_card, defender_card)
+
+    local dmg_actions, dmg_err = lib_card_ability.deal_damage_to_character(
+        state, attacker_card, defender_card, damage_dealt, state[defender_line_key], defender_side_void
+    )
+    if dmg_err ~= nil then return dmg_err end
+
+    attacker_card.trigger = true
+
+    local atk_actions, atk_err = fire_on_attack(state, attacker_card, attacker_def, defender_card, defender_def, defender_line_key, defender_side_void, damage_dealt)
+    if atk_err ~= nil then return atk_err end
+
+    local def_actions, def_err = fire_on_damaged(state, attacker_card, attacker_def, defender_card, defender_def, damage_dealt)
+    if def_err ~= nil then return def_err end
+
+    append_attack_client_actions(state, attacker_side, defender_side, attacker_card, defender_card, dmg_actions, atk_actions, def_actions)
+
+    send_ability_attacker_to_void(state, attacker_card, attacker_line_key, attacker_def, attacker_side)
+
+    return nil
+end
