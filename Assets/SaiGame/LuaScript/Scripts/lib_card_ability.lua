@@ -19,6 +19,7 @@ local _known_abilities = {
     twin_reaper    = { event = "on_attack"  },   -- also strikes the card to the right of the target (fallback: left)
     spinning_slash = { event = "on_attack"  },   -- requires azure_blade in front-line; deals attacker.metadata.atk_add + azure_blade.metadata.atk
     cross_guard    = { event = "on_attack"  },   -- increases target's final_def by 200 (triggered directly as ability-type card)
+    totem_pulse    = { event = "on_defend"  },   -- adds base_stats.def_add to every card in its own side's front_line
 }
 
 -- ─── Internal helpers ─────────────────────────────────────────────────────────
@@ -107,17 +108,12 @@ function deal_damage_to_character(state, attacker_card, target_card, damage, tar
         return {}, nil
     end
 
-    -- Always resolve final_def from item def (same as do_normal_attack in alpha_attacking).
-    -- Buffs will be applied here later.
-    local target_item_def = _find_item_def(state.item_defs, target_card.item_definition_code_name)
-    local base_def        = (target_item_def ~= nil and target_item_def.base_stats and target_item_def.base_stats.def) or 0
-    local final_def       = base_def
-    target_card.final_def = final_def   -- always persist, matches alpha_attacking pattern
+    local final_def = target_card.final_def or 0
 
     local prev_damage = target_card.total_damage_received or 0
     target_card.total_damage_received = prev_damage + damage
     local defeated = target_card.total_damage_received > final_def
-    lib_battle_common.dlog("[ability] deal_damage: base_def=" .. base_def .. " final_def=" .. final_def .. " prev_damage=" .. prev_damage .. " new_total=" .. target_card.total_damage_received .. " defeated=" .. (defeated and "yes" or "no"))
+    lib_battle_common.dlog("[ability] deal_damage: final_def=" .. final_def .. " prev_damage=" .. prev_damage .. " new_total=" .. target_card.total_damage_received .. " defeated=" .. (defeated and "yes" or "no"))
 
     local target_side   = void_key == "alpha_the_void" and "alpha" or "omega"
     local damage_actions = {}
@@ -269,6 +265,30 @@ local function _handle_cross_guard(state, source_card, event_data)
     return guard_actions, nil
 end
 
+-- totem_pulse: on_defend, adds base_stats.def_add from the totem's item def to
+-- every real card in its own side's front_line.
+local function _handle_totem_pulse(state, source_card, event_data)
+    lib_battle_common.dlog("== [ability] totem_pulse ====================")
+    local source_side    = _find_card_side(state, source_card)
+    local front_line_key = source_side .. "_front_line"
+    local front_line     = state[front_line_key] or {}
+    local totem_item_def = _find_item_def(state.item_defs, source_card.item_definition_code_name)
+    local def_add        = (totem_item_def ~= nil and totem_item_def.base_stats ~= nil and totem_item_def.base_stats.def_add) or 0
+    lib_battle_common.dlog("[ability] totem_pulse: source=" .. source_card.inventory_item_id .. " side=" .. source_side .. " def_add=" .. def_add)
+    local ability_actions = {}
+    for _, front_card in ipairs(front_line) do
+        local has_id = front_card.inventory_item_id ~= nil and front_card.inventory_item_id ~= ""
+        if has_id then
+            local prev_def = front_card.final_def or 0
+            front_card.final_def = prev_def + def_add
+            lib_battle_common.dlog("[ability] totem_pulse: buffed card=" .. front_card.inventory_item_id .. " final_def " .. prev_def .. " -> " .. front_card.final_def)
+            local buff_action = source_side .. "_card_ability:" .. source_card.inventory_item_id .. ",totem_pulse," .. front_card.inventory_item_id
+            table.insert(ability_actions, buff_action)
+        end
+    end
+    return ability_actions, nil
+end
+
 -- ─── Ability Dispatcher ───────────────────────────────────────────────────────
 
 -- Calls the handler for one ability key only if its registered event matches trigger_event.
@@ -292,6 +312,8 @@ local function _dispatch_one_ability(state, source_card, key, trigger_event, eve
         return _handle_spinning_slash(state, source_card, event_data)
     elseif key == "cross_guard" then
         return _handle_cross_guard(state, source_card, event_data)
+    elseif key == "totem_pulse" then
+        return _handle_totem_pulse(state, source_card, event_data)
     else
         lib_battle_common.dlog("[ability] dispatch: key=" .. key .. " ERROR - no handler defined")
         return {}, "no handler for ability key: " .. tostring(key)

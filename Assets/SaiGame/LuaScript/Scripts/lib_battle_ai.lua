@@ -94,277 +94,6 @@ function _rebuild_hand(original_hand, deployed_ids)
     return hand
 end
 
--- ── Easy ─────────────────────────────────────────────────────────────────────
--- Cautious:
---   Front line: deploy 1 character (face random) only if no character is already there.
---   Back line : deploy 1 non-character (face random) into the first empty slot,
---               but only if the back line currently has fewer than 2 cards.
-
-function _deploy_easy(state)
-    lib_battle_common.dlog("[lib_battle_ai] == _deploy_easy ==")
-
-    local front_line = state.omega_front_line or {}
-    local back_line  = state.omega_back_line  or {}
-
-    -- Count characters already on the front line.
-    local front_char_count = 0
-    for _, slot_card in ipairs(front_line) do
-        if slot_card.item_definition_code_name ~= nil and slot_card.item_definition_code_name ~= "" then
-            local slot_item_def  = _find_item_def(state.item_defs, slot_card.item_definition_code_name)
-            local slot_card_type = slot_item_def ~= nil and slot_item_def.metadata ~= nil and slot_item_def.metadata.type or nil
-            if slot_card_type == "character" then
-                front_char_count = front_char_count + 1
-            end
-        end
-    end
-    lib_battle_common.dlog("[lib_battle_ai] _deploy_easy: front_char_count = " .. tostring(front_char_count))
-
-    local hand_cards = _collect_cards(state.omega_hand)
-    local characters, others = _split_cards_by_type(hand_cards, state.item_defs)
-    lib_battle_common.dlog("[lib_battle_ai] _deploy_easy: hand characters = " .. tostring(#characters) .. ", others = " .. tostring(#others))
-
-    math.randomseed(ctx.timestamp)
-    local front_face_up = math.random(0, 1) == 1
-
-    local deployed_ids   = {}
-    local front_deployed  = {}
-    local back_deployed   = {}
-
-    -- Deploy 1 character into the first empty front slot if none on field yet.
-    if front_char_count == 0 and #characters >= 1 then
-        local deploy_card = characters[1]
-        for slot_i = 1, SLOT_COUNT do
-            local existing = front_line[slot_i]
-            if existing == nil or existing.item_definition_code_name == nil or existing.item_definition_code_name == "" then
-                deploy_card.slot_index = slot_i - 1
-                deploy_card.face_up    = front_face_up
-                deploy_card.expose     = front_face_up
-                front_line[slot_i]     = deploy_card
-                table.insert(deployed_ids, deploy_card.id)
-                table.insert(front_deployed, deploy_card)
-                lib_battle_common.dlog("[lib_battle_ai] _deploy_easy: front[" .. slot_i .. "] = " .. tostring(deploy_card.item_definition_code_name) .. ", face_up = " .. tostring(front_face_up))
-                break
-            end
-        end
-    end
-
-    -- Add 1 non-character into the first empty back slot, only if back line has fewer than 2 cards.
-    local back_card_count = 0
-    for _, back_slot in ipairs(back_line) do
-        if back_slot.item_definition_code_name ~= nil and back_slot.item_definition_code_name ~= "" then
-            back_card_count = back_card_count + 1
-        end
-    end
-    lib_battle_common.dlog("[lib_battle_ai] _deploy_easy: back_card_count = " .. tostring(back_card_count))
-
-    if back_card_count < 2 and #others >= 1 then
-        local deploy_card  = others[1]
-        local back_face_up = math.random(0, 1) == 1
-        for slot_i = 1, SLOT_COUNT do
-            local existing = back_line[slot_i]
-            if existing == nil or existing.item_definition_code_name == nil or existing.item_definition_code_name == "" then
-                deploy_card.slot_index = slot_i - 1
-                deploy_card.face_up    = back_face_up
-                deploy_card.expose     = back_face_up
-                back_line[slot_i]      = deploy_card
-                table.insert(deployed_ids, deploy_card.id)
-                table.insert(back_deployed, deploy_card)
-                lib_battle_common.dlog("[lib_battle_ai] _deploy_easy: back[" .. slot_i .. "] = " .. tostring(deploy_card.item_definition_code_name) .. ", face_up = " .. tostring(back_face_up))
-                break
-            end
-        end
-    end
-
-    local hand = _rebuild_hand(state.omega_hand, deployed_ids)
-    lib_battle_common.dlog("[lib_battle_ai] _deploy_easy: deployed " .. tostring(#deployed_ids) .. " card(s)")
-
-    for _, front_card in ipairs(front_deployed) do
-        if front_card.inventory_item_id ~= nil and front_card.inventory_item_id ~= "" then
-            lib_battle_common.append_client_action(state, "omega_hand_to_front_line:" .. front_card.inventory_item_id .. "," .. (front_card.slot_index or 0))
-        end
-    end
-    for _, back_card in ipairs(back_deployed) do
-        if back_card.inventory_item_id ~= nil and back_card.inventory_item_id ~= "" then
-            lib_battle_common.append_client_action(state, "omega_hand_to_back_line:" .. back_card.inventory_item_id .. "," .. (back_card.slot_index or 0))
-        end
-    end
-
-    return front_line, back_line, hand, nil
-end
-
--- ── Normal ───────────────────────────────────────────────────────────────────
--- Balanced:
---   Front line: deploy 1 character (face random) if fewer than 2 characters are already there.
---   Back line : deploy up to 2 non-characters (face random) into the first empty slots,
---               but only if the back line currently has fewer than 3 cards.
-
-function _deploy_normal(state)
-    lib_battle_common.dlog("[lib_battle_ai] == _deploy_normal ==")
-
-    local front_line = state.omega_front_line or {}
-    local back_line  = state.omega_back_line  or {}
-
-    -- Count characters already on the front line.
-    local front_char_count = 0
-    for _, slot_card in ipairs(front_line) do
-        if slot_card.item_definition_code_name ~= nil and slot_card.item_definition_code_name ~= "" then
-            local slot_item_def  = _find_item_def(state.item_defs, slot_card.item_definition_code_name)
-            local slot_card_type = slot_item_def ~= nil and slot_item_def.metadata ~= nil and slot_item_def.metadata.type or nil
-            if slot_card_type == "character" then
-                front_char_count = front_char_count + 1
-            end
-        end
-    end
-    lib_battle_common.dlog("[lib_battle_ai] _deploy_normal: front_char_count = " .. tostring(front_char_count))
-
-    local hand_cards = _collect_cards(state.omega_hand)
-    local characters, others = _split_cards_by_type(hand_cards, state.item_defs)
-    lib_battle_common.dlog("[lib_battle_ai] _deploy_normal: hand characters = " .. tostring(#characters) .. ", others = " .. tostring(#others))
-
-    math.randomseed(ctx.timestamp)
-    local front_face_up = math.random(0, 1) == 1
-
-    local deployed_ids   = {}
-    local front_deployed  = {}
-    local back_deployed   = {}
-
-    -- Deploy 1 character into the first empty front slot if fewer than 2 on field.
-    if front_char_count < 2 and #characters >= 1 then
-        local deploy_card = characters[1]
-        for slot_i = 1, SLOT_COUNT do
-            local existing = front_line[slot_i]
-            if existing == nil or existing.item_definition_code_name == nil or existing.item_definition_code_name == "" then
-                deploy_card.slot_index = slot_i - 1
-                deploy_card.face_up    = front_face_up
-                deploy_card.expose     = front_face_up
-                front_line[slot_i]     = deploy_card
-                table.insert(deployed_ids, deploy_card.id)
-                table.insert(front_deployed, deploy_card)
-                lib_battle_common.dlog("[lib_battle_ai] _deploy_normal: front[" .. slot_i .. "] = " .. tostring(deploy_card.item_definition_code_name) .. ", face_up = " .. tostring(front_face_up))
-                break
-            end
-        end
-    end
-
-    -- Add up to 2 non-characters into the first empty back slots (face random), only if back line has fewer than 3 cards.
-    local back_card_count = 0
-    for _, back_slot in ipairs(back_line) do
-        if back_slot.item_definition_code_name ~= nil and back_slot.item_definition_code_name ~= "" then
-            back_card_count = back_card_count + 1
-        end
-    end
-    lib_battle_common.dlog("[lib_battle_ai] _deploy_normal: back_card_count = " .. tostring(back_card_count))
-
-    if back_card_count < 3 then
-        local back_deployed_count = 0
-        local other_index         = 1
-        while back_deployed_count < 2 and other_index <= #others do
-            local deploy_card  = others[other_index]
-            local back_face_up = math.random(0, 1) == 1
-            for slot_i = 1, SLOT_COUNT do
-                local existing = back_line[slot_i]
-                if existing == nil or existing.item_definition_code_name == nil or existing.item_definition_code_name == "" then
-                    deploy_card.slot_index = slot_i - 1
-                    deploy_card.face_up    = back_face_up
-                    deploy_card.expose     = back_face_up
-                    back_line[slot_i]      = deploy_card
-                    table.insert(deployed_ids, deploy_card.id)
-                    table.insert(back_deployed, deploy_card)
-                    lib_battle_common.dlog("[lib_battle_ai] _deploy_normal: back[" .. slot_i .. "] = " .. tostring(deploy_card.item_definition_code_name) .. ", face_up = " .. tostring(back_face_up))
-                    back_deployed_count = back_deployed_count + 1
-                    break
-                end
-            end
-            other_index = other_index + 1
-        end
-    end
-
-    local hand = _rebuild_hand(state.omega_hand, deployed_ids)
-    lib_battle_common.dlog("[lib_battle_ai] _deploy_normal: deployed " .. tostring(#deployed_ids) .. " new card(s)")
-
-    for _, front_card in ipairs(front_deployed) do
-        if front_card.inventory_item_id ~= nil and front_card.inventory_item_id ~= "" then
-            lib_battle_common.append_client_action(state, "omega_hand_to_front_line:" .. front_card.inventory_item_id .. "," .. (front_card.slot_index or 0))
-        end
-    end
-    for _, back_card in ipairs(back_deployed) do
-        if back_card.inventory_item_id ~= nil and back_card.inventory_item_id ~= "" then
-            lib_battle_common.append_client_action(state, "omega_hand_to_back_line:" .. back_card.inventory_item_id .. "," .. (back_card.slot_index or 0))
-        end
-    end
-
-    return front_line, back_line, hand, nil
-end
-
--- ── Hard ─────────────────────────────────────────────────────────────────────
--- Aggressive: 1 character in front (face-down), up to 2 non-characters in back (face-down).
-
-function _deploy_hard(state)
-    lib_battle_common.dlog("[lib_battle_ai] == _deploy_hard ==")
-    local cards = _collect_cards(state.omega_hand)
-    if #cards == 0 then
-        return nil, nil, nil, "omega_hand is empty"
-    end
-
-    local characters, others = _split_cards_by_type(cards, state.item_defs)
-
-    local front_cards = {}
-    local back_cards  = {}
-    -- max 1 character per deploy
-    if #characters >= 1 then table.insert(front_cards, characters[1]) end
-    for i = 1, math.min(2, #others) do table.insert(back_cards, others[i]) end
-
-    local deployed_ids = {}
-    for _, deploy_card in ipairs(front_cards) do table.insert(deployed_ids, deploy_card.id) end
-    for _, deploy_card in ipairs(back_cards)  do table.insert(deployed_ids, deploy_card.id) end
-
-    local front = _build_line(front_cards, false, "in_front_line")
-    local back  = _build_line(back_cards,  false, "in_back_line")
-    local hand  = _rebuild_hand(state.omega_hand, deployed_ids)
-    lib_battle_common.dlog("[lib_battle_ai] _deploy_hard: deployed " .. tostring(#deployed_ids) .. " new card(s)")
-
-    for _, front_card in ipairs(front_cards) do
-        if front_card.inventory_item_id ~= nil and front_card.inventory_item_id ~= "" then
-            lib_battle_common.append_client_action(state, "omega_hand_to_front_line:" .. front_card.inventory_item_id .. "," .. (front_card.slot_index or 0))
-        end
-    end
-    for _, back_card in ipairs(back_cards) do
-        if back_card.inventory_item_id ~= nil and back_card.inventory_item_id ~= "" then
-            lib_battle_common.append_client_action(state, "omega_hand_to_back_line:" .. back_card.inventory_item_id .. "," .. (back_card.slot_index or 0))
-        end
-    end
-
-    return front, back, hand, nil
-end
-
--- ── Main dispatcher ──────────────────────────────────────────────────────────
--- state      : battle session state (must have state.omega_hand)
--- difficulty : "easy" | "normal" | "hard"
--- Returns: omega_front_line, omega_back_line, omega_hand, err
-
-function deploy_omega_cards(state, difficulty)
-    lib_battle_common.dlog("[lib_battle_ai] == deploy_omega_cards == difficulty: " .. tostring(difficulty))
-    if type(state) ~= "table" then
-        return nil, nil, nil, "deploy_omega_cards: state must be a table"
-    end
-    if type(difficulty) ~= "string" then
-        return nil, nil, nil, "deploy_omega_cards: difficulty must be a string"
-    end
-    if state.omega_hand == nil then
-        return nil, nil, nil, "deploy_omega_cards: state.omega_hand is required"
-    end
-
-    if difficulty == "easy" then
-        return _deploy_easy(state)
-    elseif difficulty == "normal" then
-        return _deploy_normal(state)
-    elseif difficulty == "hard" then
-        return _deploy_hard(state)
-    else
-        return nil, nil, nil, "deploy_omega_cards: unknown difficulty '" .. difficulty .. "' (easy|normal|hard)"
-    end
-end
-
 -- ── Draw helpers ─────────────────────────────────────────────────────────────
 
 function _gen_id()
@@ -545,69 +274,132 @@ function omega_draw(state, card_count)
     return hand, nil
 end
 
--- ── omega_planning_to_attack ────────────────────────────────────────────────
--- Plans Omega's deal_damage_to_character attack:
---   attacker : first non-stunned card in omega_front_line.
---   defender : first character card in alpha_front_line.
--- (attacker-ability attacks that can hit back-line are handled separately.)
--- Appends a client action: "omega_planing_attack:<omega_inv_id>,<alpha_inv_id>"
--- Returns: err
+-- ── deploy_omega_cards ────────────────────────────────────────────────────────
+-- Deploys cards from omega_hand into existing omega lines (mid-battle, per turn).
+-- Characters → front line (face-down); others → back line (face-down).
+-- Returns: front_line, back_line, new_hand, err
+
+-- Places cards from card_list into the first available empty slots of target_line.
+-- Returns deployed_ids (by card.id) and deployed_list.
+function _fill_line_slots(target_line, card_list, face_up)
+    local deployed_ids  = {}
+    local deployed_list = {}
+    for _, deploy_card in ipairs(card_list) do
+        local placed = false
+        for slot_i = 1, SLOT_COUNT do
+            local existing = target_line[slot_i]
+            if existing == nil or existing.item_definition_code_name == nil or existing.item_definition_code_name == "" then
+                deploy_card.slot_index = slot_i - 1
+                deploy_card.face_up    = face_up
+                deploy_card.expose     = face_up
+                target_line[slot_i]    = deploy_card
+                table.insert(deployed_ids, deploy_card.id)
+                table.insert(deployed_list, deploy_card)
+                placed = true
+                break
+            end
+        end
+        if not placed then
+            lib_battle_common.dlog("[lib_battle_ai] _fill_line_slots: no empty slot for card " .. (deploy_card.inventory_item_id or "?"))
+        end
+    end
+    return deployed_ids, deployed_list
+end
+
+-- Appends omega_hand_to_front_line / omega_hand_to_back_line client actions.
+function _append_mid_deploy_actions(state, front_deployed, back_deployed)
+    for _, front_card in ipairs(front_deployed) do
+        if front_card.inventory_item_id ~= nil and front_card.inventory_item_id ~= "" then
+            lib_battle_common.append_client_action(state, "omega_hand_to_front_line:" .. front_card.inventory_item_id .. "," .. (front_card.slot_index or 0))
+        end
+    end
+    for _, back_card in ipairs(back_deployed) do
+        if back_card.inventory_item_id ~= nil and back_card.inventory_item_id ~= "" then
+            lib_battle_common.append_client_action(state, "omega_hand_to_back_line:" .. back_card.inventory_item_id .. "," .. (back_card.slot_index or 0))
+        end
+    end
+end
+
+-- Calls reset_card_turn_state on all newly deployed front and back cards.
+function _reset_deployed_cards(item_defs, front_deployed, back_deployed)
+    for _, front_card in ipairs(front_deployed) do
+        lib_battle_common.reset_card_turn_state(item_defs, front_card)
+    end
+    for _, back_card in ipairs(back_deployed) do
+        lib_battle_common.reset_card_turn_state(item_defs, back_card)
+    end
+end
+
+function deploy_omega_cards(state, difficulty)
+    lib_battle_common.dlog("[lib_battle_ai] == deploy_omega_cards == difficulty=" .. tostring(difficulty))
+    local omega_front_line = state.omega_front_line or {}
+    local omega_back_line  = state.omega_back_line  or {}
+
+    local hand_cards                   = _collect_cards(state.omega_hand or {})
+    local character_cards, other_cards = _split_cards_by_type(hand_cards, state.item_defs)
+
+    local front_ids, front_deployed = _fill_line_slots(omega_front_line, character_cards, false)
+    local back_ids,  back_deployed  = _fill_line_slots(omega_back_line,  other_cards,     false)
+
+    local all_deployed_ids = {}
+    for _, dep_id in ipairs(front_ids) do table.insert(all_deployed_ids, dep_id) end
+    for _, dep_id in ipairs(back_ids)  do table.insert(all_deployed_ids, dep_id) end
+
+    local new_hand = _rebuild_hand(state.omega_hand or {}, all_deployed_ids)
+    _append_mid_deploy_actions(state, front_deployed, back_deployed)
+    _reset_deployed_cards(state.item_defs, front_deployed, back_deployed)
+
+    lib_battle_common.dlog("[lib_battle_ai] deploy_omega_cards: deployed=" .. #all_deployed_ids)
+    return omega_front_line, omega_back_line, new_hand, nil
+end
+
+-- ── omega_planning_to_attack ──────────────────────────────────────────────────
+-- Builds state.omega_planning for the current turn.
+-- Each omega front-line card that has not triggered gets one plan entry targeting
+-- the first available alpha front-line card (or back-line if front is empty).
+-- Returns err or nil.
+
+-- Returns the first real (non-empty-slot) card from line, or nil.
+function _find_first_real_card_in_line(line)
+    for _, line_card in ipairs(line or {}) do
+        if line_card.inventory_item_id ~= nil and line_card.inventory_item_id ~= "" then
+            return line_card
+        end
+    end
+    return nil
+end
+
+-- Picks the alpha card that omega should attack this turn.
+function _pick_alpha_attack_target(state)
+    local alpha_front_target = _find_first_real_card_in_line(state.alpha_front_line)
+    if alpha_front_target ~= nil then return alpha_front_target end
+    return _find_first_real_card_in_line(state.alpha_back_line)
+end
 
 function omega_planning_to_attack(state)
     lib_battle_common.dlog("[lib_battle_ai] == omega_planning_to_attack ==")
-    if type(state) ~= "table" then
-        return "omega_planning_to_attack: state must be a table"
-    end
-
-    -- Pick first valid omega attacker from front line (must be a character, not stunned, and not yet triggered).
-    local omega_attacker = nil
+    state.omega_planning = {}
     local omega_front_line = state.omega_front_line or {}
-    for _, omega_card in ipairs(omega_front_line) do
-        if omega_card.inventory_item_id ~= nil and omega_card.inventory_item_id ~= ""
-            and lib_battle_common.check_card_type(state.item_defs, omega_card, "character")
-            and not lib_battle_common.is_card_stunned(omega_card)
-            and omega_card.trigger ~= true then
-            omega_attacker = omega_card
-            break
+    for _, attacker_card in ipairs(omega_front_line) do
+        local attacker_id = attacker_card.inventory_item_id or ""
+        if attacker_id == "" then
+            -- empty slot, skip
+        elseif attacker_card.trigger == true then
+            lib_battle_common.dlog("[lib_battle_ai] omega attacker already triggered: " .. attacker_id)
+        else
+            local defender_card = _pick_alpha_attack_target(state)
+            if defender_card == nil then
+                lib_battle_common.dlog("[lib_battle_ai] no alpha target for omega attacker: " .. attacker_id)
+            else
+                local plan_entry = {}
+                plan_entry.action          = "card_attack_card"
+                plan_entry.attacker_inv_id = attacker_id
+                plan_entry.defender_inv_id = defender_card.inventory_item_id
+                table.insert(state.omega_planning, plan_entry)
+                lib_battle_common.dlog("[lib_battle_ai] planned: " .. attacker_id .. " -> " .. defender_card.inventory_item_id)
+            end
         end
     end
-
-    if omega_attacker == nil then
-        lib_battle_common.dlog("[lib_battle_ai] omega_planning_to_attack: no valid omega attacker (face_up+expose), skipping")
-        return nil
-    end
-
-    -- deal_damage_to_character: defender must be a character in alpha_front_line only.
-    local alpha_defender = nil
-    local alpha_front_line = state.alpha_front_line or {}
-    for _, alpha_card in ipairs(alpha_front_line) do
-        if alpha_card.inventory_item_id ~= nil and alpha_card.inventory_item_id ~= ""
-            and lib_battle_common.check_card_type(state.item_defs, alpha_card, "character") then
-            alpha_defender = alpha_card
-            break
-        end
-    end
-
-    if alpha_defender == nil then
-        lib_battle_common.dlog("[lib_battle_ai] omega_planning_to_attack: no character defender in alpha_front_line, skipping")
-        return nil
-    end
-
-    -- Force attacker to be revealed so the client can animate the expose.
-    omega_attacker.face_up = true
-    omega_attacker.expose  = true
-    lib_battle_common.append_client_action(state, "omega_card_expose:" .. omega_attacker.inventory_item_id)
-
-    local attack_action = "omega_planing_character_attack:" .. omega_attacker.inventory_item_id .. "," .. alpha_defender.inventory_item_id
-    lib_battle_common.append_client_action(state, attack_action)
-    local plan_entry = {}
-    plan_entry.action            = "card_attack_card"
-    plan_entry.attacker_inv_id   = omega_attacker.inventory_item_id
-    plan_entry.defender_inv_id   = alpha_defender.inventory_item_id
-    table.insert(state.omega_planning, plan_entry)
-    lib_battle_common.dlog("[lib_battle_ai] omega_planning_to_attack: " .. attack_action)
-
-    state.alpha_defending = true
-
+    lib_battle_common.dlog("[lib_battle_ai] omega_planning count=" .. #state.omega_planning)
     return nil
 end
