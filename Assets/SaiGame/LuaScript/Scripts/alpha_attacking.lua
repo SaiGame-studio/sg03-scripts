@@ -93,11 +93,10 @@ local function log_card_info(attacker_card, defender_card, attacker_def, defende
     lib_battle_common.dlog("defender_line=" .. defender_line_key .. " side_void=" .. defender_side_void)
 end
 
--- Computes final damage dealt by the attacker (includes debug override).
+-- Computes final damage dealt by the attacker
 local function compute_damage(attacker_def)
     local base_atk     = (attacker_def.base_stats and attacker_def.base_stats.atk) or 0
     local damage_dealt = base_atk
-    damage_dealt = 10  -- To debug
     lib_battle_common.dlog("[alpha_attacking] compute_damage: base_atk=" .. base_atk .. " damage_dealt(debug override)=" .. damage_dealt)
     return damage_dealt
 end

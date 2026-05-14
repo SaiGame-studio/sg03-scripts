@@ -267,6 +267,18 @@ end
 
 -- totem_pulse: on_defend, adds base_stats.def_add from the totem's item def to
 -- every real card in its own side's front_line.
+-- Only activates when at least one goblin_shaman in the front_line has not yet triggered.
+local function _find_untriggered_goblin_shaman(front_line)
+    for _, front_card in ipairs(front_line) do
+        local has_id   = front_card.inventory_item_id ~= nil and front_card.inventory_item_id ~= ""
+        local is_shaman = front_card.item_definition_code_name == "goblin_shaman"
+        if has_id and is_shaman and front_card.trigger ~= true then
+            return front_card
+        end
+    end
+    return nil
+end
+
 local function _handle_totem_pulse(state, source_card, event_data)
     lib_battle_common.dlog("== [ability] totem_pulse ====================")
     local source_side    = _find_card_side(state, source_card)
@@ -275,6 +287,12 @@ local function _handle_totem_pulse(state, source_card, event_data)
     local totem_item_def = _find_item_def(state.item_defs, source_card.item_definition_code_name)
     local def_add        = (totem_item_def ~= nil and totem_item_def.base_stats ~= nil and totem_item_def.base_stats.def_add) or 0
     lib_battle_common.dlog("[ability] totem_pulse: source=" .. source_card.inventory_item_id .. " side=" .. source_side .. " def_add=" .. def_add)
+    local shaman_card = _find_untriggered_goblin_shaman(front_line)
+    if shaman_card == nil then
+        lib_battle_common.dlog("[ability] totem_pulse: no untriggered goblin_shaman in " .. front_line_key .. ", skip")
+        return {}, nil
+    end
+    lib_battle_common.dlog("[ability] totem_pulse: untriggered goblin_shaman found: " .. shaman_card.inventory_item_id)
     local ability_actions = {}
     for _, front_card in ipairs(front_line) do
         local has_id = front_card.inventory_item_id ~= nil and front_card.inventory_item_id ~= ""
@@ -286,6 +304,20 @@ local function _handle_totem_pulse(state, source_card, event_data)
             table.insert(ability_actions, buff_action)
         end
     end
+    -- Send the totem card itself to the void after use.
+    local back_line_key  = source_side .. "_back_line"
+    local back_line      = state[back_line_key] or {}
+    for i, back_card in ipairs(back_line) do
+        if back_card.inventory_item_id == source_card.inventory_item_id then
+            table.remove(back_line, i)
+            break
+        end
+    end
+    local void_key = source_side .. "_the_void"
+    if state[void_key] == nil then state[void_key] = {} end
+    table.insert(state[void_key], source_card)
+    lib_battle_common.dlog("[ability] totem_pulse: source card sent to void=" .. void_key .. " id=" .. source_card.inventory_item_id)
+    table.insert(ability_actions, source_side .. "_card_sent_to_void:" .. source_card.inventory_item_id)
     return ability_actions, nil
 end
 
