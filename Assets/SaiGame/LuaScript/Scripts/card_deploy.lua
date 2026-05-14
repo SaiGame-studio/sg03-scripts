@@ -1,4 +1,7 @@
 require "lib_battle_common"
+require "lib_battle_ai"
+require "lib_card_ability"
+require "lib_battle_entity_ai"
 
 -- card_deploy
 -- Finalizes the opening deploy for both alpha (player) and omega (enemy AI).
@@ -449,49 +452,9 @@ end
 
 -- ─── Enemy-specific deploy strategies ────────────────────────────────────────
 
--- Filters other_cards, returning only totem_pulse cards.
-local function filter_totem_pulse_cards(other_cards)
-    local totem_pulse_cards = {}
-    for _, other_card in ipairs(other_cards) do
-        if other_card.item_definition_code_name == "totem_pulse" then
-            table.insert(totem_pulse_cards, other_card)
-        end
-    end
-    return totem_pulse_cards
-end
-
--- Goblin Shaman strategy:
---   Front : 1 character, always face-down.
---   Back  : ALL totem_pulse cards face-up (slot permitting).
+-- Goblin Shaman strategy: one character (random face_up) to front, totem_pulse cards to back.
 deploy_goblin_shaman = function(state)
-    lib_battle_common.dlog("[card_deploy] == deploy_goblin_shaman ==")
-
-    local omega_front_line = state.omega_front_line or {}
-    local omega_back_line  = state.omega_back_line  or {}
-    local deployed_ids     = {}
-    local front_deployed   = {}
-    local back_deployed    = {}
-
-    local hand_cards                   = collect_omega_hand_cards(state.omega_hand)
-    local character_cards, other_cards = split_omega_cards_by_type(state.item_defs, hand_cards)
-    local totem_pulse_cards            = filter_totem_pulse_cards(other_cards)
-    lib_battle_common.dlog("[card_deploy] goblin_shaman: characters=" .. #character_cards .. " totem_pulse=" .. #totem_pulse_cards)
-
-    if #character_cards >= 1 then
-        local front_face_up = math.random(0, 1) == 1
-        deploy_one_card_to_line(omega_front_line, character_cards[1], front_face_up, deployed_ids, front_deployed)
-    end
-
-    for _, totem_card in ipairs(totem_pulse_cards) do
-        local back_face_up = math.random(0, 1) == 1
-        deploy_one_card_to_line(omega_back_line, totem_card, back_face_up, deployed_ids, back_deployed)
-    end
-
-    local new_omega_hand = rebuild_omega_hand(state.omega_hand, deployed_ids)
-    append_omega_deploy_actions(state, front_deployed, back_deployed)
-    lib_battle_common.dlog("[card_deploy] goblin_shaman: deployed " .. #deployed_ids .. " card(s)")
-
-    return omega_front_line, omega_back_line, new_omega_hand, nil
+    return lib_battle_entity_ai.goblin_shaman_deploy(state)
 end
 
 -- ─── Dispatch table ────────────────────────────────────────────────────────────

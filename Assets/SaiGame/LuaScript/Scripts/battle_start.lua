@@ -71,13 +71,7 @@ local function main()
     local selected_mode = resolve_mode(enemy)
     lib_battle_common.dlog("[battle_start] battle mode: " .. tostring(selected_mode))
 
-    local battle_difficulty = payload.battle_difficulty
-    if battle_difficulty == nil or battle_difficulty == "" then
-        battle_difficulty = "normal"
-    end
-    lib_battle_common.dlog("[battle_start] battle difficulty: " .. tostring(battle_difficulty))
-
-    local state = build_state(enemy, selected_mode, battle_difficulty, player_the_source, enemy_the_source, preset)
+    local state = build_state(enemy, selected_mode, player_the_source, enemy_the_source, preset)
     lib_battle_common.append_client_action(state, "alpha_source_spawn_card:" .. #player_the_source)
     lib_battle_common.append_client_action(state, "omega_source_spawn_card:" .. #enemy_the_source)
 
@@ -130,7 +124,7 @@ resolve_mode = function(enemy)
     return selected
 end
 
-build_state = function(enemy, selected_mode, battle_difficulty, player_the_source, enemy_the_source, preset)
+build_state = function(enemy, selected_mode, player_the_source, enemy_the_source, preset)
     local hp_map = { fast = 4000, normal = 7000, long = 16000 }
     local hp = hp_map[selected_mode]
     return {
@@ -140,7 +134,6 @@ build_state = function(enemy, selected_mode, battle_difficulty, player_the_sourc
             omega              = enemy,
             enemy_entity_key   = payload.enemy_entity_key,
             battle_mode        = selected_mode,
-            battle_difficulty  = battle_difficulty,
             started_at         = ctx.timestamp,
             next_move          = "init_cards",
         },

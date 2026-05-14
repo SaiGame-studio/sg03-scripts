@@ -330,8 +330,8 @@ function _reset_deployed_cards(item_defs, front_deployed, back_deployed)
     end
 end
 
-function deploy_omega_cards(state, difficulty)
-    lib_battle_common.dlog("[lib_battle_ai] == deploy_omega_cards == difficulty=" .. tostring(difficulty))
+function deploy_omega_cards(state)
+    lib_battle_common.dlog("[lib_battle_ai] == deploy_omega_cards ==")
     local omega_front_line = state.omega_front_line or {}
     local omega_back_line  = state.omega_back_line  or {}
 
@@ -355,8 +355,9 @@ end
 
 -- ── omega_planning_to_attack ──────────────────────────────────────────────────
 -- Builds state.omega_planning for the current turn.
--- Each omega front-line card that has not triggered gets one plan entry targeting
--- the first available alpha front-line card (or back-line if front is empty).
+-- Picks ONE untriggered character from omega_front_line to attack the alpha
+-- front-line card with the lowest final_def (fallback to alpha back-line).
+-- Appends a "omega_plan_attack:attacker_id,defender_id" client action.
 -- Returns err or nil.
 
 -- Returns the first real (non-empty-slot) card from line, or nil.
@@ -369,37 +370,77 @@ function _find_first_real_card_in_line(line)
     return nil
 end
 
--- Picks the alpha card that omega should attack this turn.
+-- Returns the first untriggered character card in omega_front_line, or nil.
+function _find_omega_attacker(state)
+    local omega_front_line = state.omega_front_line or {}
+    for _, front_card in ipairs(omega_front_line) do
+        local attacker_id = front_card.inventory_item_id or ""
+        if attacker_id == "" then
+            -- empty slot, skip
+        elseif front_card.trigger == true then
+            lib_battle_common.dlog("[lib_battle_ai] _find_omega_attacker: already triggered: " .. attacker_id)
+        else
+            local attacker_def = _find_item_def(state.item_defs, front_card.item_definition_code_name)
+            local card_type    = attacker_def ~= nil and attacker_def.metadata ~= nil and attacker_def.metadata.type or nil
+            if card_type == "character" then
+                lib_battle_common.dlog("[lib_battle_ai] _find_omega_attacker: selected=" .. attacker_id)
+                return front_card
+            end
+        end
+    end
+    return nil
+end
+
+-- Returns the alpha front-line card with the lowest final_def.
+-- Falls back to alpha back-line if front is empty.
 function _pick_alpha_attack_target(state)
-    local alpha_front_target = _find_first_real_card_in_line(state.alpha_front_line)
-    if alpha_front_target ~= nil then return alpha_front_target end
-    return _find_first_real_card_in_line(state.alpha_back_line)
+    local alpha_front_line = state.alpha_front_line or {}
+    local lowest_card      = nil
+    local lowest_def       = math.huge
+    for _, front_card in ipairs(alpha_front_line) do
+        if front_card.inventory_item_id ~= nil and front_card.inventory_item_id ~= "" then
+            local card_def = front_card.final_def or 0
+            lib_battle_common.dlog("[lib_battle_ai] _pick_alpha_attack_target: candidate id=" .. front_card.inventory_item_id .. " final_def=" .. card_def)
+            if card_def < lowest_def then
+                lowest_def  = card_def
+                lowest_card = front_card
+            end
+        end
+    end
+    if lowest_card ~= nil then
+        lib_battle_common.dlog("[lib_battle_ai] _pick_alpha_attack_target: chose front id=" .. lowest_card.inventory_item_id .. " def=" .. lowest_def)
+        return lowest_card
+    end
+    local back_card = _find_first_real_card_in_line(state.alpha_back_line)
+    if back_card ~= nil then
+        lib_battle_common.dlog("[lib_battle_ai] _pick_alpha_attack_target: front empty, chose back id=" .. back_card.inventory_item_id)
+    end
+    return back_card
 end
 
 function omega_planning_to_attack(state)
     lib_battle_common.dlog("[lib_battle_ai] == omega_planning_to_attack ==")
     state.omega_planning = {}
-    local omega_front_line = state.omega_front_line or {}
-    for _, attacker_card in ipairs(omega_front_line) do
-        local attacker_id = attacker_card.inventory_item_id or ""
-        if attacker_id == "" then
-            -- empty slot, skip
-        elseif attacker_card.trigger == true then
-            lib_battle_common.dlog("[lib_battle_ai] omega attacker already triggered: " .. attacker_id)
-        else
-            local defender_card = _pick_alpha_attack_target(state)
-            if defender_card == nil then
-                lib_battle_common.dlog("[lib_battle_ai] no alpha target for omega attacker: " .. attacker_id)
-            else
-                local plan_entry = {}
-                plan_entry.action          = "card_attack_card"
-                plan_entry.attacker_inv_id = attacker_id
-                plan_entry.defender_inv_id = defender_card.inventory_item_id
-                table.insert(state.omega_planning, plan_entry)
-                lib_battle_common.dlog("[lib_battle_ai] planned: " .. attacker_id .. " -> " .. defender_card.inventory_item_id)
-            end
-        end
+
+    local attacker_card = _find_omega_attacker(state)
+    if attacker_card == nil then
+        lib_battle_common.dlog("[lib_battle_ai] omega_planning_to_attack: no untriggered character attacker")
+        return nil
     end
-    lib_battle_common.dlog("[lib_battle_ai] omega_planning count=" .. #state.omega_planning)
+
+    local defender_card = _pick_alpha_attack_target(state)
+    if defender_card == nil then
+        lib_battle_common.dlog("[lib_battle_ai] omega_planning_to_attack: no alpha target available")
+        return nil
+    end
+
+    local plan_entry = {}
+    plan_entry.action          = "card_attack_card"
+    plan_entry.attacker_inv_id = attacker_card.inventory_item_id
+    plan_entry.defender_inv_id = defender_card.inventory_item_id
+    table.insert(state.omega_planning, plan_entry)
+
+    lib_battle_common.append_client_action(state, "omega_planing_character_attack:" .. attacker_card.inventory_item_id .. "," .. defender_card.inventory_item_id)
+    lib_battle_common.dlog("[lib_battle_ai] omega_planning_to_attack: planned " .. attacker_card.inventory_item_id .. " -> " .. defender_card.inventory_item_id)
     return nil
 end

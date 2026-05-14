@@ -97,6 +97,33 @@ local function compute_attack_damage(attacker_def)
     return (attacker_def.base_stats and attacker_def.base_stats.atk) or 0
 end
 
+-- Phase 1: store pending_attack so future alpha-defend reactions can read/modify it.
+local function plan_omega_attack(state, resolved, damage_dealt)
+    local pending_atk = {}
+    pending_atk.attacker_inventory_item_id = resolved.attacker_card.inventory_item_id
+    pending_atk.defender_inventory_item_id = resolved.defender_card.inventory_item_id
+    pending_atk.damage_dealt               = damage_dealt
+    state.pending_attack = pending_atk
+    lib_battle_common.dlog("[alpha_defending_end] pending_attack stored: attacker=" .. pending_atk.attacker_inventory_item_id .. " defender=" .. pending_atk.defender_inventory_item_id .. " damage=" .. damage_dealt)
+end
+
+-- Phase 3: apply the (possibly modified) pending_attack damage.
+local function resolve_omega_attack(state, resolved)
+    local final_damage = state.pending_attack ~= nil and state.pending_attack.damage_dealt or 0
+    lib_battle_common.dlog("[alpha_defending_end] resolve_omega_attack final_damage=" .. final_damage)
+    local attack_err = lib_battle_common.card_attack_card(
+        state,
+        resolved.attacker_card, resolved.attacker_def, resolved.attacker_line_key,
+        resolved.defender_card, resolved.defender_def, resolved.defender_line_key, resolved.defender_side_void,
+        final_damage
+    )
+    if attack_err ~= nil then return attack_err end
+    state.pending_attack = nil
+    local attacker_side = (string.sub(resolved.attacker_line_key, 1, 5) == "alpha") and "alpha" or "omega"
+    lib_battle_common.append_client_action(state, attacker_side .. "_card_move_back_to_holder:" .. resolved.attacker_card.inventory_item_id)
+    return nil
+end
+
 local function execute_card_attack_plan(state, plan_entry)
     local resolved, resolve_err = resolve_attack_plan(state, plan_entry)
     if resolve_err ~= nil then
@@ -112,20 +139,15 @@ local function execute_card_attack_plan(state, plan_entry)
         return nil
     end
 
+    -- Phase 1: plan (stores pending_attack for potential alpha defend reactions).
     local damage_dealt = compute_attack_damage(resolved.attacker_def)
-    lib_battle_common.dlog("[alpha_defending_end] executing card_attack_card damage=" .. tostring(damage_dealt))
+    plan_omega_attack(state, resolved, damage_dealt)
 
-    local attack_err = lib_battle_common.card_attack_card(
-        state,
-        resolved.attacker_card, resolved.attacker_def, resolved.attacker_line_key,
-        resolved.defender_card, resolved.defender_def, resolved.defender_line_key, resolved.defender_side_void,
-        damage_dealt
-    )
-    if attack_err ~= nil then return attack_err end
+    -- Phase 2: (reserved for future alpha defend reactions).
 
-    -- Animate attacker returning to its slot on the client.
-    local attacker_side = (string.sub(resolved.attacker_line_key, 1, 5) == "alpha") and "alpha" or "omega"
-    lib_battle_common.append_client_action(state, attacker_side .. "_card_move_back_to_holder:" .. resolved.attacker_card.inventory_item_id)
+    -- Phase 3: resolve using pending_attack.damage_dealt.
+    local resolve_err2 = resolve_omega_attack(state, resolved)
+    if resolve_err2 ~= nil then return resolve_err2 end
 
     return nil
 end

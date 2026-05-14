@@ -1,8 +1,18 @@
 require "lib_battle_common"
 require "lib_battle_ai"
+require "lib_battle_entity_ai"
 
 -- alpha_turn_end.lua
 -- End-of-turn cleanup for Alpha's turn.
+
+local enemy_deploy_dispatch           -- table: enemy_entity_key → deploy function
+local deploy_goblin_shaman            -- forward declaration
+local enemy_attack_planning_dispatch  -- table: enemy_entity_key → planning function
+local plan_goblin_shaman              -- forward declaration
+
+local function get_enemy_key(state)
+    return state.metadata ~= nil and state.metadata.enemy_entity_key or nil
+end
 
 local function handoff_lamp_to_omega(state)
     if state.client_actions == nil then state.client_actions = {} end
@@ -19,21 +29,53 @@ local function run_omega_draw(state)
     return nil
 end
 
+local function run_omega_attack_planning(state)
+    local enemy_key = get_enemy_key(state)
+    lib_battle_common.dlog("[alpha_turn_end] run_omega_attack_planning enemy_key=" .. tostring(enemy_key))
+    local plan_fn = enemy_key ~= nil and enemy_attack_planning_dispatch[enemy_key] or nil
+    if plan_fn == nil then
+        return "no attack planning handler for enemy_entity_key: " .. tostring(enemy_key)
+    end
+    local plan_err = plan_fn(state)
+    if plan_err ~= nil then return plan_err end
+    state.alpha_defending = true
+    return nil
+end
+
+-- ─── Enemy-specific mid-turn deploy functions ────────────────────────────────
+
+-- Dispatches to the enemy-specific deploy function by enemy_entity_key.
+-- Returns err or nil.
 local function run_omega_deploy(state)
-    local ai_difficulty = state.metadata ~= nil and state.metadata.battle_difficulty or "normal"
-    local o_front, o_back, o_hand, ai_err = lib_battle_ai.deploy_omega_cards(state, ai_difficulty)
-    if ai_err ~= nil then return ai_err end
+    local enemy_key = get_enemy_key(state)
+    lib_battle_common.dlog("[alpha_turn_end] run_omega_deploy enemy_key=" .. tostring(enemy_key))
+    local deploy_fn = enemy_key ~= nil and enemy_deploy_dispatch[enemy_key] or nil
+    if deploy_fn == nil then
+        return "no deploy handler for enemy_entity_key: " .. tostring(enemy_key)
+    end
+    local o_front, o_back, o_hand, deploy_err = deploy_fn(state)
+    if deploy_err ~= nil then return deploy_err end
     state.omega_front_line = o_front
     state.omega_back_line  = o_back
     state.omega_hand       = o_hand
     return nil
 end
 
-local function run_omega_attack_planning(state)
-    local attack_plan_err = lib_battle_ai.omega_planning_to_attack(state)
-    if attack_plan_err ~= nil then return attack_plan_err end
-    return nil
+deploy_goblin_shaman = function(state)
+    return lib_battle_entity_ai.goblin_shaman_deploy(state)
 end
+
+enemy_deploy_dispatch = {
+    goblin_shaman = deploy_goblin_shaman,
+}
+
+plan_goblin_shaman = function(state)
+    return lib_battle_entity_ai.goblin_shaman_plan_attack(state)
+end
+
+enemy_attack_planning_dispatch = {
+    goblin_shaman = plan_goblin_shaman,
+}
 
 local function advance_turn_to_omega(state)
     if state.metadata == nil then state.metadata = {} end
@@ -52,28 +94,40 @@ end
 
 local function main()
     local session_id, sid_err = lib_battle_common.resolve_session_id()
-    if sid_err ~= nil then output.error = sid_err ; return end
+    if sid_err ~= nil then
+        output.error = sid_err; return
+    end
 
     local state, state_err = lib_battle_common.load_session(session_id)
-    if state_err ~= nil then output.error = state_err ; return end
+    if state_err ~= nil then
+        output.error = state_err; return
+    end
     lib_battle_common.dlog("[alpha_turn_end] session loaded: " .. session_id)
 
     lib_battle_common.reset_turn_cards(state)
     handoff_lamp_to_omega(state)
 
     local draw_err = run_omega_draw(state)
-    if draw_err ~= nil then output.error = draw_err ; return end
+    if draw_err ~= nil then
+        output.error = draw_err; return
+    end
 
     local deploy_err = run_omega_deploy(state)
-    if deploy_err ~= nil then output.error = deploy_err ; return end
+    if deploy_err ~= nil then
+        output.error = deploy_err; return
+    end
 
     local plan_err = run_omega_attack_planning(state)
-    if plan_err ~= nil then output.error = plan_err ; return end
+    if plan_err ~= nil then
+        output.error = plan_err; return
+    end
 
     advance_turn_to_omega(state)
 
     local save_err = persist_battle_state(session_id, state)
-    if save_err ~= nil then output.error = save_err ; return end
+    if save_err ~= nil then
+        output.error = save_err; return
+    end
 
     lib_battle_common.battle_status()
 end
