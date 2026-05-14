@@ -23,7 +23,7 @@ local function run_omega_draw(state)
     local omega_draw_count = lib_battle_common.get_draw_card_count()
     output.omega_draw_card_count = omega_draw_count
 
-    local omega_new_hand, omega_draw_err = lib_battle_ai.omega_draw(state, omega_draw_count)
+    local omega_new_hand, omega_draw_err = lib_battle_ai.omega_draw_random(state, omega_draw_count)
     if omega_draw_err ~= nil then return omega_draw_err end
     state.omega_hand = omega_new_hand
     return nil
