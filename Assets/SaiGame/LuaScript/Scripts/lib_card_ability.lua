@@ -289,7 +289,7 @@ local function _handle_totem_pulse(state, source_card, event_data)
     lib_battle_common.dlog("[ability] totem_pulse: source=" .. source_card.inventory_item_id .. " side=" .. source_side .. " def_add=" .. def_add)
     local shaman_card = _find_untriggered_goblin_shaman(front_line)
     if shaman_card == nil then
-        lib_battle_common.dlog("[ability] totem_pulse: no untriggered goblin_shaman in " .. front_line_key .. ", skip")
+        lib_battle_common.dlog("[ability] totem_pulse: ed goblin_shaman in " .. front_line_key .. ", skip")
         return {}, nil
     end
     lib_battle_common.dlog("[ability] totem_pulse: untriggered goblin_shaman found: " .. shaman_card.inventory_item_id)

@@ -10,7 +10,7 @@
 --   state.omega_back_line  = back
 --   state.omega_hand       = hand
 
-local SLOT_COUNT = 5  -- number of slots per line (matches card_deploy.lua)
+local SLOT_COUNT = 5 -- number of slots per line (matches card_deploy.lua)
 
 -- ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -59,11 +59,11 @@ function _build_line(card_list, face_up, card_action)
     end
     for i, card in ipairs(card_list) do
         if i > SLOT_COUNT then break end
-        card.slot_index  = i - 1
-        card.face_up     = face_up
-        card.expose      = face_up
+        card.slot_index = i - 1
+        card.face_up    = face_up
+        card.expose     = face_up
         -- card.card_action = card_action
-        line[i]          = card
+        line[i]         = card
     end
     return line
 end
@@ -124,63 +124,35 @@ function _find_and_remove_by_code(list, code)
     return nil
 end
 
--- ── alpha_draw ────────────────────────────────────────────────────────────────
--- Draws opening hand for Alpha from alpha_the_source.
---   Cards 1-3 : matched by inventory_item_id from alpha_preset_metadata.
---   Cards 4-5 : drawn randomly from the remaining source.
+-- ── alpha_draw_random ─────────────────────────────────────────────────────────
+-- Draws card_count random cards from alpha_the_source.
+-- start_slot (optional, default 0): slot_index offset for the drawn cards.
 -- Returns: hand, err
 
-function alpha_draw(state, card_count)
-    lib_battle_common.dlog("[lib_battle_ai] == alpha_draw == card_count: " .. tostring(card_count))
-    local preset = state.alpha_preset_metadata
-    if preset == nil then
-        return nil, "alpha_preset_metadata not found in session state"
-    end
+function alpha_draw_random(state, card_count, start_slot)
+    lib_battle_common.dlog("[lib_battle_ai] == alpha_draw_random == card_count: " .. tostring(card_count))
+    start_slot = start_slot or 0
 
     local source = state.alpha_the_source
     if source == nil then
         return nil, "alpha_the_source not found in session state"
     end
 
-    local slot_names  = { "choose_card_1", "choose_card_2", "choose_card_3" }
-    local preset_uuids = { preset.choose_card_1, preset.choose_card_2, preset.choose_card_3 }
-    for i, uid in ipairs(preset_uuids) do
-        if uid == nil or uid == "" then
-            return nil, "alpha_preset_metadata." .. slot_names[i] .. " is missing"
-        end
-    end
-
-    local preset_cards = {}
-    for i, uid in ipairs(preset_uuids) do
-        local preset_card = _find_and_remove(source, uid)
-        if preset_card == nil then
-            return nil, "preset card " .. slot_names[i] .. " (" .. uid .. ") not found in alpha_the_source"
-        end
-        table.insert(preset_cards, preset_card)
-    end
-
-    local random_count = card_count - #preset_cards
-    if #source < random_count then
-        return nil, "alpha_the_source has fewer than " .. random_count .. " remaining cards after removing preset cards"
-    end
-
     math.randomseed(ctx.timestamp)
 
-    local random_cards = {}
-    for _ = 1, random_count do
+    local hand = {}
+    for _ = 1, card_count do
+        if #source == 0 then break end
         local idx = math.random(1, #source)
-        table.insert(random_cards, source[idx])
+        table.insert(hand, source[idx])
         table.remove(source, idx)
     end
 
-    local hand = {}
-    for _, preset_card in ipairs(preset_cards) do table.insert(hand, preset_card) end
-    for _, random_card in ipairs(random_cards) do table.insert(hand, random_card) end
     for i = #hand + 1, card_count do hand[i] = {} end
 
     for i, hand_card in ipairs(hand) do
         if hand_card.item_definition_code_name ~= nil and hand_card.item_definition_code_name ~= "" then
-            hand_card.slot_index  = i - 1
+            hand_card.slot_index  = start_slot + i - 1
             hand_card.trigger     = false
             hand_card.stun_remain = 0
         end
@@ -188,66 +160,35 @@ function alpha_draw(state, card_count)
 
     for _, hand_card in ipairs(hand) do
         if hand_card.inventory_item_id ~= nil and hand_card.inventory_item_id ~= "" then
-            lib_battle_common.append_client_action(state, "alpha_source_to_hand:" .. hand_card.inventory_item_id .. "," .. (hand_card.slot_index or 0))
+            lib_battle_common.append_client_action(state,
+                "alpha_source_to_hand:" .. hand_card.inventory_item_id .. "," .. (hand_card.slot_index or 0))
         end
     end
-    lib_battle_common.dlog("[lib_battle_ai] alpha_draw client_actions added: " .. tostring(#hand) .. " cards")
+    lib_battle_common.dlog("[lib_battle_ai] alpha_draw_random client_actions added: " .. tostring(#hand) .. " cards")
 
     return hand, nil
 end
 
--- ── omega_draw ────────────────────────────────────────────────────────────────
--- Draws opening hand for Omega from omega_the_source.
---   Preset slots : matched by item_definition_code_name from metadata.omega.metadata.
---   Remaining    : drawn randomly up to SLOT_COUNT.
+-- ── omega_draw_random ─────────────────────────────────────────────────────────
+-- Draws card_count random cards from omega_the_source (no preset logic).
+-- start_slot (optional, default 0): slot_index offset for the drawn cards.
 -- Returns: hand, err
 
-function omega_draw(state, card_count)
-    lib_battle_common.dlog("[lib_battle_ai] == omega_draw == card_count: " .. tostring(card_count))
-    if state.metadata == nil or state.metadata.omega == nil then
-        return nil, "metadata.omega not found in session state"
-    end
-    local preset = state.metadata.omega.metadata
-    if preset == nil then
-        return nil, "metadata.omega.metadata not found in session state"
-    end
+function omega_draw_random(state, card_count, start_slot)
+    lib_battle_common.dlog("[lib_battle_ai] == omega_draw_random == card_count: " .. tostring(card_count))
+    start_slot = start_slot or 0
 
     local source = state.omega_the_source
     if source == nil then
         return nil, "omega_the_source not found in session state"
     end
 
-    local slot_keys  = { "choose_card_1", "choose_card_2", "choose_card_3" }
-    local code_names = {}
-    for _, key in ipairs(slot_keys) do
-        local code = preset[key]
-        if code ~= nil and code ~= "" then
-            table.insert(code_names, { key = key, code = code })
-        end
-    end
-
-    if #code_names == 0 then
-        return nil, "omega_preset_metadata has no choose_card slots"
-    end
-
     math.randomseed(ctx.timestamp)
 
     local hand = {}
-    for _, slot in ipairs(code_names) do
-        if #hand >= card_count then break end
-        local omega_card = _find_and_remove_by_code(source, slot.code)
-        if omega_card == nil then
-            return nil, "omega preset " .. slot.key .. " (" .. slot.code .. ") not found in omega_the_source"
-        end
-        omega_card.id                = _gen_id()
-        omega_card.inventory_item_id = _gen_id()
-        table.insert(hand, omega_card)
-    end
-
-    local random_count = card_count - #hand
-    for _ = 1, random_count do
+    for _ = 1, card_count do
         if #source == 0 then break end
-        local idx = math.random(1, #source)
+        local idx                     = math.random(1, #source)
         source[idx].id                = _gen_id()
         source[idx].inventory_item_id = _gen_id()
         table.insert(hand, source[idx])
@@ -258,7 +199,7 @@ function omega_draw(state, card_count)
 
     for i, hand_card in ipairs(hand) do
         if hand_card.item_definition_code_name ~= nil and hand_card.item_definition_code_name ~= "" then
-            hand_card.slot_index  = i - 1
+            hand_card.slot_index  = start_slot + i - 1
             hand_card.trigger     = false
             hand_card.stun_remain = 0
         end
@@ -266,10 +207,11 @@ function omega_draw(state, card_count)
 
     for _, hand_card in ipairs(hand) do
         if hand_card.inventory_item_id ~= nil and hand_card.inventory_item_id ~= "" then
-            lib_battle_common.append_client_action(state, "omega_source_to_hand:" .. hand_card.inventory_item_id .. "," .. (hand_card.slot_index or 0))
+            lib_battle_common.append_client_action(state,
+                "omega_source_to_hand:" .. hand_card.inventory_item_id .. "," .. (hand_card.slot_index or 0))
         end
     end
-    lib_battle_common.dlog("[lib_battle_ai] omega_draw client_actions added: " .. tostring(#hand) .. " cards")
+    lib_battle_common.dlog("[lib_battle_ai] omega_draw_random client_actions added: " .. tostring(#hand) .. " cards")
 
     return hand, nil
 end
@@ -300,7 +242,8 @@ function _fill_line_slots(target_line, card_list, face_up)
             end
         end
         if not placed then
-            lib_battle_common.dlog("[lib_battle_ai] _fill_line_slots: no empty slot for card " .. (deploy_card.inventory_item_id or "?"))
+            lib_battle_common.dlog("[lib_battle_ai] _fill_line_slots: no empty slot for card " ..
+            (deploy_card.inventory_item_id or "?"))
         end
     end
     return deployed_ids, deployed_list
@@ -310,12 +253,14 @@ end
 function _append_mid_deploy_actions(state, front_deployed, back_deployed)
     for _, front_card in ipairs(front_deployed) do
         if front_card.inventory_item_id ~= nil and front_card.inventory_item_id ~= "" then
-            lib_battle_common.append_client_action(state, "omega_hand_to_front_line:" .. front_card.inventory_item_id .. "," .. (front_card.slot_index or 0))
+            lib_battle_common.append_client_action(state,
+                "omega_hand_to_front_line:" .. front_card.inventory_item_id .. "," .. (front_card.slot_index or 0))
         end
     end
     for _, back_card in ipairs(back_deployed) do
         if back_card.inventory_item_id ~= nil and back_card.inventory_item_id ~= "" then
-            lib_battle_common.append_client_action(state, "omega_hand_to_back_line:" .. back_card.inventory_item_id .. "," .. (back_card.slot_index or 0))
+            lib_battle_common.append_client_action(state,
+                "omega_hand_to_back_line:" .. back_card.inventory_item_id .. "," .. (back_card.slot_index or 0))
         end
     end
 end
@@ -332,18 +277,18 @@ end
 
 function deploy_omega_cards(state)
     lib_battle_common.dlog("[lib_battle_ai] == deploy_omega_cards ==")
-    local omega_front_line = state.omega_front_line or {}
-    local omega_back_line  = state.omega_back_line  or {}
+    local omega_front_line             = state.omega_front_line or {}
+    local omega_back_line              = state.omega_back_line or {}
 
     local hand_cards                   = _collect_cards(state.omega_hand or {})
     local character_cards, other_cards = _split_cards_by_type(hand_cards, state.item_defs)
 
-    local front_ids, front_deployed = _fill_line_slots(omega_front_line, character_cards, false)
-    local back_ids,  back_deployed  = _fill_line_slots(omega_back_line,  other_cards,     false)
+    local front_ids, front_deployed    = _fill_line_slots(omega_front_line, character_cards, false)
+    local back_ids, back_deployed      = _fill_line_slots(omega_back_line, other_cards, false)
 
-    local all_deployed_ids = {}
+    local all_deployed_ids             = {}
     for _, dep_id in ipairs(front_ids) do table.insert(all_deployed_ids, dep_id) end
-    for _, dep_id in ipairs(back_ids)  do table.insert(all_deployed_ids, dep_id) end
+    for _, dep_id in ipairs(back_ids) do table.insert(all_deployed_ids, dep_id) end
 
     local new_hand = _rebuild_hand(state.omega_hand or {}, all_deployed_ids)
     _append_mid_deploy_actions(state, front_deployed, back_deployed)
@@ -353,11 +298,24 @@ function deploy_omega_cards(state)
     return omega_front_line, omega_back_line, new_hand, nil
 end
 
+-- ── omega_end_turn ───────────────────────────────────────────────────────────
+-- Ends omega's attacking turn: clears alpha_defending and advances next_move
+-- to "alpha_turn" so the state machine returns control to alpha.
+function omega_end_turn(state)
+    lib_battle_common.dlog("[lib_battle_ai] == omega_end_turn ==")
+    state.alpha_defending = false
+    state.turn = (state.turn or 0) + 1
+    state.metadata.next_move = "alpha_turn"
+    lib_battle_common.dlog("[lib_battle_ai] omega_end_turn: alpha_defending=false, turn=" ..
+    tostring(state.turn) .. ", next_move=alpha_turn")
+end
+
 -- ── omega_planning_to_attack ──────────────────────────────────────────────────
 -- Builds state.omega_planning for the current turn.
 -- Picks ONE untriggered character from omega_front_line to attack the alpha
 -- front-line card with the lowest final_def (fallback to alpha back-line).
 -- Appends a "omega_plan_attack:attacker_id,defender_id" client action.
+-- If no untriggered attacker exists, calls omega_end_turn directly.
 -- Returns err or nil.
 
 -- Returns the first real (non-empty-slot) card from line, or nil.
@@ -381,7 +339,8 @@ function _find_omega_attacker(state)
             lib_battle_common.dlog("[lib_battle_ai] _find_omega_attacker: already triggered: " .. attacker_id)
         else
             local attacker_def = _find_item_def(state.item_defs, front_card.item_definition_code_name)
-            local card_type    = attacker_def ~= nil and attacker_def.metadata ~= nil and attacker_def.metadata.type or nil
+            local card_type    = attacker_def ~= nil and attacker_def.metadata ~= nil and attacker_def.metadata.type or
+            nil
             if card_type == "character" then
                 lib_battle_common.dlog("[lib_battle_ai] _find_omega_attacker: selected=" .. attacker_id)
                 return front_card
@@ -400,7 +359,8 @@ function _pick_alpha_attack_target(state)
     for _, front_card in ipairs(alpha_front_line) do
         if front_card.inventory_item_id ~= nil and front_card.inventory_item_id ~= "" then
             local card_def = front_card.final_def or 0
-            lib_battle_common.dlog("[lib_battle_ai] _pick_alpha_attack_target: candidate id=" .. front_card.inventory_item_id .. " final_def=" .. card_def)
+            lib_battle_common.dlog("[lib_battle_ai] _pick_alpha_attack_target: candidate id=" ..
+            front_card.inventory_item_id .. " final_def=" .. card_def)
             if card_def < lowest_def then
                 lowest_def  = card_def
                 lowest_card = front_card
@@ -408,12 +368,14 @@ function _pick_alpha_attack_target(state)
         end
     end
     if lowest_card ~= nil then
-        lib_battle_common.dlog("[lib_battle_ai] _pick_alpha_attack_target: chose front id=" .. lowest_card.inventory_item_id .. " def=" .. lowest_def)
+        lib_battle_common.dlog("[lib_battle_ai] _pick_alpha_attack_target: chose front id=" ..
+        lowest_card.inventory_item_id .. " def=" .. lowest_def)
         return lowest_card
     end
     local back_card = _find_first_real_card_in_line(state.alpha_back_line)
     if back_card ~= nil then
-        lib_battle_common.dlog("[lib_battle_ai] _pick_alpha_attack_target: front empty, chose back id=" .. back_card.inventory_item_id)
+        lib_battle_common.dlog("[lib_battle_ai] _pick_alpha_attack_target: front empty, chose back id=" ..
+        back_card.inventory_item_id)
     end
     return back_card
 end
@@ -424,7 +386,9 @@ function omega_planning_to_attack(state)
 
     local attacker_card = _find_omega_attacker(state)
     if attacker_card == nil then
-        lib_battle_common.dlog("[lib_battle_ai] omega_planning_to_attack: no untriggered character attacker")
+        lib_battle_common.dlog(
+        "[lib_battle_ai] omega_planning_to_attack: no untriggered character attacker -> calling omega_end_turn")
+        omega_end_turn(state)
         return nil
     end
 
@@ -434,13 +398,15 @@ function omega_planning_to_attack(state)
         return nil
     end
 
-    local plan_entry = {}
+    local plan_entry           = {}
     plan_entry.action          = "card_attack_card"
     plan_entry.attacker_inv_id = attacker_card.inventory_item_id
     plan_entry.defender_inv_id = defender_card.inventory_item_id
     table.insert(state.omega_planning, plan_entry)
 
-    lib_battle_common.append_client_action(state, "omega_planing_character_attack:" .. attacker_card.inventory_item_id .. "," .. defender_card.inventory_item_id)
-    lib_battle_common.dlog("[lib_battle_ai] omega_planning_to_attack: planned " .. attacker_card.inventory_item_id .. " -> " .. defender_card.inventory_item_id)
+    lib_battle_common.append_client_action(state,
+        "omega_planing_character_attack:" .. attacker_card.inventory_item_id .. "," .. defender_card.inventory_item_id)
+    lib_battle_common.dlog("[lib_battle_ai] omega_planning_to_attack: planned " ..
+    attacker_card.inventory_item_id .. " -> " .. defender_card.inventory_item_id)
     return nil
 end
