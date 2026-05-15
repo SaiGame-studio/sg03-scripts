@@ -7,7 +7,7 @@
 -- Returns true if the card's item definition metadata.type matches card_type.
 -- Looks up the definition from item_defs using card.item_definition_code_name.
 function check_card_type(item_defs, card, card_type)
-    lib_battle_common.dlog("== check_card_type ==")
+    dlog("== check_card_type ==")
     if card == nil then return false end
     if item_defs == nil then return false end
     local code = card.item_definition_code_name
@@ -23,7 +23,7 @@ end
 -- Removes the first card with matching inventory_item_id from a line array.
 -- Returns true if a card was removed, false otherwise.
 function remove_card_from_line(line, inventory_item_id)
-    lib_battle_common.dlog("== remove_card_from_line ==")
+    dlog("== remove_card_from_line ==")
     if line == nil then return false end
     for i, card in ipairs(line) do
         if card.inventory_item_id == inventory_item_id then
@@ -68,7 +68,7 @@ end
 -- ─── reset_turn_cards ───────────────────────────────────────────────────────
 -- Resets per-turn state on every card in all four battle lines.
 function reset_turn_cards(state)
-    lib_battle_common.dlog("== reset_turn_cards done ==")
+    dlog("== reset_turn_cards done ==")
 
     local lines = {
         state.alpha_front_line or {},
@@ -78,7 +78,7 @@ function reset_turn_cards(state)
     }
     for _, line in ipairs(lines) do
         for _, reset_card in ipairs(line) do
-            lib_battle_common.reset_card_turn_state(state.item_defs, reset_card)
+            reset_card_turn_state(state.item_defs, reset_card)
         end
     end
 end
@@ -93,8 +93,14 @@ end
 -- ─── get_draw_card_count ────────────────────────────────────────────────────
 -- Returns the number of cards a player draws at the start of their turn.
 function get_draw_card_count()
-    lib_battle_common.dlog("== get_draw_card_count ==")
+    dlog("== get_draw_card_count ==")
     return 2
+end
+
+-- ─── get_hand_size ───────────────────────────────────────────────────────────
+-- Returns the maximum number of card slots in a player's hand.
+function get_hand_size()
+    return 5
 end
 
 -- ─── dlog ────────────────────────────────────────────────────────────────────
@@ -214,7 +220,7 @@ end
 -- Reads the current battle session and writes its full state into output.
 
 function battle_status()
-    lib_battle_common.dlog("== battle_status ==")
+    dlog("== battle_status ==")
     local session_id, state, resolve_err = resolve_battle_session()
     if resolve_err ~= nil then output.error = resolve_err ; return end
 
@@ -224,7 +230,7 @@ function battle_status()
 
     mask_omega_hand(state, is_development)
     write_alpha_state_output(state, session_id)
-    lib_battle_common.hide_unrevealed_omega_cards(state)
+    hide_unrevealed_omega_cards(state)
     write_omega_state_output(state)
     output.item_defs         = is_development and state.item_defs or nil
     -- output.item_defs_actions = build_card_action_list(state)
@@ -272,22 +278,22 @@ local function fire_on_damaged(state, attacker_card, attacker_def, defender_card
 end
 
 local function append_attack_client_actions(state, attacker_side, defender_side, attacker_card, defender_card, dmg_actions, atk_actions, def_actions)
-    lib_battle_common.append_client_action(state, attacker_side .. "_card_expose:" .. attacker_card.inventory_item_id)
-    lib_battle_common.append_client_action(state, defender_side .. "_card_expose:" .. defender_card.inventory_item_id)
-    lib_battle_common.append_client_action(state, attacker_side .. "_attack:" .. attacker_card.inventory_item_id .. "," .. defender_card.inventory_item_id)
-    for _, action in ipairs(dmg_actions) do lib_battle_common.append_client_action(state, action) end
-    for _, action in ipairs(atk_actions) do lib_battle_common.append_client_action(state, action) end
-    for _, action in ipairs(def_actions) do lib_battle_common.append_client_action(state, action) end
+    append_client_action(state, attacker_side .. "_card_expose:" .. attacker_card.inventory_item_id)
+    append_client_action(state, defender_side .. "_card_expose:" .. defender_card.inventory_item_id)
+    append_client_action(state, attacker_side .. "_attack:" .. attacker_card.inventory_item_id .. "," .. defender_card.inventory_item_id)
+    for _, action in ipairs(dmg_actions) do append_client_action(state, action) end
+    for _, action in ipairs(atk_actions) do append_client_action(state, action) end
+    for _, action in ipairs(def_actions) do append_client_action(state, action) end
 end
 
 local function send_ability_attacker_to_void(state, attacker_card, attacker_line_key, attacker_def, attacker_side)
     if attacker_def.metadata == nil or attacker_def.metadata.type ~= "ability" then return end
     local attacker_void_key = attacker_side .. "_the_void"
-    lib_battle_common.remove_card_from_line(state[attacker_line_key], attacker_card.inventory_item_id)
+    remove_card_from_line(state[attacker_line_key], attacker_card.inventory_item_id)
     if state[attacker_void_key] == nil then state[attacker_void_key] = {} end
     table.insert(state[attacker_void_key], attacker_card)
-    lib_battle_common.append_client_action(state, attacker_side .. "_card_sent_to_void:" .. attacker_card.inventory_item_id)
-    lib_battle_common.dlog("attacker is ability-type, sent to " .. attacker_void_key .. ": " .. attacker_card.inventory_item_id)
+    append_client_action(state, attacker_side .. "_card_sent_to_void:" .. attacker_card.inventory_item_id)
+    dlog("attacker is ability-type, sent to " .. attacker_void_key .. ": " .. attacker_card.inventory_item_id)
 end
 
 -- ─── card_attack_card ────────────────────────────────────────────────────────
@@ -297,7 +303,7 @@ end
 -- Sides are inferred from attacker_line_key and defender_side_void.
 -- Returns: err (nil on success).
 function card_attack_card(state, attacker_card, attacker_def, attacker_line_key, defender_card, defender_def, defender_line_key, defender_side_void, damage_dealt)
-    lib_battle_common.dlog("== card_attack_card ==")
+    dlog("== card_attack_card ==")
     local attacker_side = side_from_line_key(attacker_line_key)
     local defender_side = (defender_side_void == "alpha_the_void") and "alpha" or "omega"
 

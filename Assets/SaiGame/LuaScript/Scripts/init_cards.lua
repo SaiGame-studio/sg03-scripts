@@ -1,5 +1,4 @@
 require "lib_battle_common"
-require "lib_battle_ai"
 
 -- init_cards
 -- Draws opening hands for both alpha and omega.
@@ -16,6 +15,102 @@ require "lib_battle_ai"
 -- {
 --   "session_id": "battle-session-uuid"
 -- }
+
+-- ── Inlined helpers (from lib_battle_ai) ────────────────────────────────────
+local function gen_id()
+    local t = "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx"
+    return string.gsub(t, "[xy]", function(c)
+        local v = (c == "x") and math.random(0, 15) or math.random(8, 11)
+        return string.format("%x", v)
+    end)
+end
+
+local function find_and_remove(list, inventory_item_id)
+    for i, item in ipairs(list) do
+        if item.inventory_item_id == inventory_item_id then
+            table.remove(list, i)
+            return item
+        end
+    end
+    return nil
+end
+
+local function find_and_remove_by_code(list, code)
+    for i, item in ipairs(list) do
+        if item.item_definition_code_name == code then
+            table.remove(list, i)
+            return item
+        end
+    end
+    return nil
+end
+
+local function alpha_draw_random(state, card_count, start_slot)
+    lib_battle_common.dlog("[init_cards] == alpha_draw_random == card_count: " .. tostring(card_count))
+    start_slot = start_slot or 0
+    local source = state.alpha_the_source
+    if source == nil then
+        return nil, "alpha_the_source not found in session state"
+    end
+    math.randomseed(ctx.timestamp)
+    local hand = {}
+    for _ = 1, card_count do
+        if #source == 0 then break end
+        local idx = math.random(1, #source)
+        table.insert(hand, source[idx])
+        table.remove(source, idx)
+    end
+    for i = #hand + 1, card_count do hand[i] = {} end
+    for i, hand_card in ipairs(hand) do
+        if hand_card.item_definition_code_name ~= nil and hand_card.item_definition_code_name ~= "" then
+            hand_card.slot_index  = start_slot + i - 1
+            hand_card.trigger     = false
+            hand_card.stun_remain = 0
+        end
+    end
+    for _, hand_card in ipairs(hand) do
+        if hand_card.inventory_item_id ~= nil and hand_card.inventory_item_id ~= "" then
+            lib_battle_common.append_client_action(state,
+                "alpha_source_to_hand:" .. hand_card.inventory_item_id .. "," .. (hand_card.slot_index or 0))
+        end
+    end
+    return hand, nil
+end
+
+local function omega_draw_random(state, card_count, start_slot)
+    lib_battle_common.dlog("[init_cards] == omega_draw_random == card_count: " .. tostring(card_count))
+    start_slot = start_slot or 0
+    local source = state.omega_the_source
+    if source == nil then
+        return nil, "omega_the_source not found in session state"
+    end
+    math.randomseed(ctx.timestamp)
+    local hand = {}
+    for _ = 1, card_count do
+        if #source == 0 then break end
+        local idx                     = math.random(1, #source)
+        source[idx].id                = gen_id()
+        source[idx].inventory_item_id = gen_id()
+        table.insert(hand, source[idx])
+        table.remove(source, idx)
+    end
+    for i = #hand + 1, card_count do hand[i] = {} end
+    for i, hand_card in ipairs(hand) do
+        if hand_card.item_definition_code_name ~= nil and hand_card.item_definition_code_name ~= "" then
+            hand_card.slot_index  = start_slot + i - 1
+            hand_card.trigger     = false
+            hand_card.stun_remain = 0
+        end
+    end
+    for _, hand_card in ipairs(hand) do
+        if hand_card.inventory_item_id ~= nil and hand_card.inventory_item_id ~= "" then
+            lib_battle_common.append_client_action(state,
+                "omega_source_to_hand:" .. hand_card.inventory_item_id .. "," .. (hand_card.slot_index or 0))
+        end
+    end
+    return hand, nil
+end
+-- ─────────────────────────────────────────────────────────────────────────────
 
 -- Draws Alpha's opening hand: exactly the 3 preset cards chosen by the player
 -- (choose_card_1/2/3 from alpha_preset_metadata). No random fill.
@@ -42,7 +137,7 @@ local function alpha_choose_cards(state)
 
     local hand = {}
     for i, uid in ipairs(preset_uuids) do
-        local card = lib_battle_ai._find_and_remove(source, uid)
+        local card = find_and_remove(source, uid)
         if card == nil then
             return nil, "preset card " .. slot_names[i] .. " (" .. uid .. ") not found in alpha_the_source"
         end
@@ -94,12 +189,12 @@ local function omega_choose_cards(state)
 
     local hand = {}
     for i, slot in ipairs(slots) do
-        local card = lib_battle_ai._find_and_remove_by_code(source, slot.code)
+        local card = find_and_remove_by_code(source, slot.code)
         if card == nil then
             return nil, "omega preset " .. slot.key .. " (" .. slot.code .. ") not found in omega_the_source"
         end
-        card.id                = lib_battle_ai._gen_id()
-        card.inventory_item_id = lib_battle_ai._gen_id()
+        card.id                = gen_id()
+        card.inventory_item_id = gen_id()
         card.slot_index        = i - 1
         card.trigger           = false
         card.stun_remain       = 0
@@ -121,7 +216,7 @@ local function alpha_init_cards(state)
     local alpha_hand, alpha_err = alpha_choose_cards(state)
     if alpha_err ~= nil then return alpha_err end
 
-    local random_hand, random_err = lib_battle_ai.alpha_draw_random(state, 2, #alpha_hand)
+    local random_hand, random_err = alpha_draw_random(state, 2, #alpha_hand)
     if random_err ~= nil then return random_err end
     for _, card in ipairs(random_hand) do table.insert(alpha_hand, card) end
 
@@ -135,7 +230,7 @@ local function omega_init_cards(state)
     local omega_hand, omega_err = omega_choose_cards(state)
     if omega_err ~= nil then return omega_err end
 
-    local random_hand, random_err = lib_battle_ai.omega_draw_random(state, 2, #omega_hand)
+    local random_hand, random_err = omega_draw_random(state, 2, #omega_hand)
     if random_err ~= nil then return random_err end
     for _, card in ipairs(random_hand) do table.insert(omega_hand, card) end
 
