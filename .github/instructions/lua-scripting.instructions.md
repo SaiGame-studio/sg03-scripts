@@ -20,22 +20,22 @@ Use this package's contract files as the source of truth:
 - Check every returned `err` from `game.*` before using returned data.
 - Write results into `output`; do not return values from the chunk.
 - Do not use filesystem, network, modules, dynamic code loading, or unavailable standard libraries.
-- Do not use `dofile`, `loadfile`, `load`, `loadstring`, `require`, `module`, `getfenv`, `setfenv`, `collectgarbage`, or `string.dump`.
+- Do not use `dofile`, `loadfile`, `load`, `loadstring`, `module`, `getfenv`, `setfenv`, `collectgarbage`, or `string.dump`.
 
-## Library Scripts & Include Directives
+## Library Scripts & Require
 
-A script may import shared library scripts using `include` directives at the top of the file:
+A script may import shared library scripts using `require` at the top of the file. Never use `include`.
 
 ```lua
-include math_utils
-include combat_helpers
+local math_utils = require "math_utils"
+local combat_helpers = require "combat_helpers"
 
 output.damage = math_utils.clamp(payload.attack - payload.defense, 0, 999)
 ```
 
 - Each library is injected as a sandboxed global table; access its functions as `libname.func(args)`.
 - Library names must match `^[a-z][a-z0-9_]*$`. Maximum **7** active libraries per game.
-- **Inside a library script** (`is_library = true`): only define functions. No top-level executable statements, no `include` directives.
+- **Inside a library script** (`is_library = true`): only define functions. No top-level executable statements, no `require` calls.
 
 ```lua
 -- Example library body (is_library = true)
