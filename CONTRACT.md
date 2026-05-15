@@ -17,7 +17,9 @@ This is the contract an AI agent must follow when generating Lua scripts for stu
 | Log lines | 100 |
 | Standard libraries | `base`, `table`, `string`, `math` |
 
-Forbidden or unavailable builtins: `dofile`, `loadfile`, `load`, `loadstring`, `require`, `module`, `getfenv`, `setfenv`, `collectgarbage`, `string.dump`, filesystem, network, `os`, and `io`.
+Forbidden or unavailable builtins: `dofile`, `loadfile`, `load`, `loadstring`, `require()` (function call), `module`, `getfenv`, `setfenv`, `collectgarbage`, `string.dump`, filesystem, network, `os`, and `io`.
+
+> **Library loading:** Use `require "libname"` at the top of a script to load a library. This is a **preprocessor directive** stripped by the server before Lua execution — not the Lua `require()` builtin.
 
 ## Script Shape
 
@@ -118,25 +120,27 @@ end
 | `game.battle_session_flee(session_id)` | `err` | Marks a battle session as fled. |
 | `game.open_entity_drop_packs(session_id, entity_def_id, pack_ids)` | `list, err` | Opens enemy drop packs. Max 7 pack IDs. |
 
-## Library Scripts & Include Directives
+## Library Scripts & `require` Directives
 
-A **library script** is a `ScriptDefinition` with `is_library = true`. Libraries may only define Lua functions — no top-level executable statements, no `include` directives.
+A **library script** is a `ScriptDefinition` with `is_library = true`. Libraries may only define Lua functions — no top-level executable statements, no `require` directives.
 
-A **regular script** may declare include directives at the very top of its body:
+A **regular script** may declare `require` directives at the very top of its body:
 
 ```lua
-include math_utils
-include combat_helpers
+require "math_utils"
+require 'combat_helpers'
 
 local dmg = math_utils.clamp(payload.attack - payload.defense, 0, 999)
 output.damage = combat_helpers.apply_crit(dmg, payload.crit_rate)
 ```
 
+> These are **preprocessor directives** — the server strips them and loads the library before passing code to the Lua VM. They are **not** the Lua `require()` builtin (which is disabled).
+
 ### Rules
 
 | Rule | Detail |
 | --- | --- |
-| Syntax | `include <libname>` — one per line, at the top of the file |
+| Syntax | `require "<libname>"` or `require '<libname>'` — one per line, at the top of the file |
 | Library name | Must match `^[a-z][a-z0-9_]*$` |
 | Access pattern | `libname.func(args)` — each library is exposed as a sandboxed global table |
 | Nesting | Libraries cannot include other libraries |
@@ -167,9 +171,10 @@ Only function definitions are allowed at the top level. Non-function values (num
 Reject or rewrite scripts that:
 
 - Call any function not listed above.
-- Use `require`, `os`, `io`, filesystem, network, dynamic code loading, or bytecode APIs.
+- Call `require(...)` as a Lua function (use `require "libname"` directives instead).
+- Use `os`, `io`, filesystem, network, dynamic code loading, or bytecode APIs.
 - Depend on wall-clock randomness for security-critical outcomes without a server-provided seed.
 - Modify data outside `output` unless using an explicit documented side-effect helper.
 - Ignore `err` from `game.*` before reading returned data.
-- Use `include` inside a library script.
+- Use `require` directives inside a library script.
 - Define non-function top-level values in a library script.

@@ -20,22 +20,22 @@ Use this package's contract files as the source of truth:
 - Check every returned `err` from `game.*` before using returned data.
 - Write results into `output`; do not return values from the chunk.
 - Do not use filesystem, network, modules, dynamic code loading, or unavailable standard libraries.
-- Do not use `dofile`, `loadfile`, `load`, `loadstring`, `module`, `getfenv`, `setfenv`, `collectgarbage`, or `string.dump`.
+- Do not use `dofile`, `loadfile`, `load`, `loadstring`, `require`, `module`, `getfenv`, `setfenv`, `collectgarbage`, or `string.dump`.
 
-## Library Scripts & Require
+## Library Scripts & Include Directives
 
-A script may import shared library scripts using `require` at the top of the file. Never use `include`.
+A script may import shared library scripts using `include` directives at the top of the file:
 
 ```lua
-local math_utils = require "math_utils"
-local combat_helpers = require "combat_helpers"
+include math_utils
+include combat_helpers
 
 output.damage = math_utils.clamp(payload.attack - payload.defense, 0, 999)
 ```
 
 - Each library is injected as a sandboxed global table; access its functions as `libname.func(args)`.
 - Library names must match `^[a-z][a-z0-9_]*$`. Maximum **7** active libraries per game.
-- **Inside a library script** (`is_library = true`): only define functions. No top-level executable statements, no `require` calls.
+- **Inside a library script** (`is_library = true`): only define functions. No top-level executable statements, no `include` directives.
 
 ```lua
 -- Example library body (is_library = true)
@@ -89,98 +89,3 @@ end
 ## Available API
 
 See `CONTRACT.md` and `.lua-libs/ss-go-game-api.lua` in this package. Do not call any unlisted function.
-
-## lib_battle_common
-
-Before creating any `local function` inside a battle script, always check `lib_battle_common.lua` first to see if that function or a similar one already exists. If it does, use `lib_battle_common.<func>()` instead of redefining it locally.
-
-## Library Import
-
-Always use `require "lib_name"` to import libraries. Never use `include`.
-
-## Language
-
-Always use English in all code, comments, variable names, string literals, and log messages. Never use any other language.
-
-## Variable Naming — No Generic Names
-
-Variable names must describe the **role or domain** of the value, not its type or position.
-
-**Forbidden generic names** (and their required replacements):
-
-| Forbidden | Use instead (example) |
-| --- | --- |
-| `card` | `attacker_card`, `defender_card`, `target_card` |
-| `def` | `attacker_def`, `defender_def`, `target_def`, `item_def` |
-| `data` | `event_data`, `payload_data`, `session_data` |
-| `obj` | `card_obj`, `session_obj` — or eliminate and use a descriptive name |
-| `result` | `battle_result`, `ability_result`, `query_result` |
-| `item` | `card_item`, `reward_item`, `loot_item` |
-| `val` | `damage_val`, `def_val` — or rename to the concept: `damage`, `armor` |
-| `tmp` / `temp` | use the actual concept being stored |
-| `k` / `v` (in generic loops) | `key` / `card`, `key` / `ability_key`, etc. |
-| `c` (loop variable over cards) | `card`, `attacker_card`, `slot_card`, etc. |
-| `t` | the actual type name: `line`, `actions`, `keys` |
-| `s` | `state`, `session`, `source` |
-| `e` | `err`, `event`, `entry` |
-
-**Rules:**
-- When a function receives a card that can be distinguished by role (attacker vs. defender vs. target), always use the role-prefixed name.
-- When a variable is a definition/stat block looked up for a specific entity, suffix with `_def` plus a role prefix: `attacker_def`, `target_def`.
-- Loop variables must name what they iterate over: `for _, ability_key in ipairs(keys)` not `for _, k`.
-- Single-letter variables are forbidden except for math-only locals (`i`, `j`, `n` in numeric for loops).
-
-## Function Length — Keep Functions Small
-
-A function must do **one thing**. If a function exceeds **30 lines** (excluding blank lines and comments), it must be split into smaller, well-named helper functions.
-
-**Rules:**
-- Extract any distinct step or logical phase into its own named local function.
-- Each extracted function must have a name that describes what it does, not how it does it (e.g., `resolve_attacker_target`, `apply_damage`, `check_win_condition`).
-- The parent function becomes an orchestrator that calls the helpers in sequence.
-- Helpers that are reusable across scripts belong in a library (e.g., `lib_battle_common`).
-
-**Example — too long (forbidden):**
-```lua
-local function run_attack(state, attacker_card)
-    -- 40+ lines mixing target resolution, damage calc, stun, logging, win check ...
-end
-```
-
-**Required — split into focused helpers:**
-```lua
-local function resolve_attack_target(state, attacker_card) ... end
-local function calculate_attack_damage(attacker_def, defender_def) ... end
-local function apply_attack_damage(state, defender_card, damage) ... end
-local function check_battle_win_condition(state) ... end
-
-local function run_attack(state, attacker_card)
-    local defender_card = resolve_attack_target(state, attacker_card)
-    local damage        = calculate_attack_damage(attacker_card, defender_card)
-    apply_attack_damage(state, defender_card, damage)
-    check_battle_win_condition(state)
-end
-```
-
-## Function Call Style — No Inline Table Literals
-
-Never construct a table literal `{ ... }` directly inside a function call argument list.
-Always assign the table to a named local variable first, then pass that variable.
-
-**Forbidden:**
-```lua
-lib_card_ability.trigger_card_ability(state, card, "on_attack", {
-    defender_card = defender_card,
-    damage_dealt  = damage_dealt,
-})
-```
-
-**Required:**
-```lua
-local atk_event_data = {}
-atk_event_data.defender_card = defender_card
-atk_event_data.damage_dealt  = damage_dealt
-lib_card_ability.trigger_card_ability(state, card, "on_attack", atk_event_data)
-```
-
-This rule applies to all function calls, including `game.*`, library calls, and local functions.
