@@ -125,48 +125,48 @@ function _find_and_remove_by_code(list, code)
 end
 
 -- ── alpha_draw_random ─────────────────────────────────────────────────────────
--- Draws card_count random cards from alpha_the_source.
--- start_slot (optional, default 0): slot_index offset for the drawn cards.
--- Returns: hand, err
-
-function alpha_draw_random(state, card_count, start_slot)
-    lib_battle_common.dlog("[lib_battle_ai] == alpha_draw_random == card_count: " .. tostring(card_count))
-    start_slot = start_slot or 0
+-- Draws up to card_count (default: get_draw_card_count()) random cards from
+-- alpha_the_source into the first available empty slots of state.alpha_hand.
+-- Hand always maintains get_hand_size() total slots.
+-- Returns err or nil.
+function alpha_draw_random(state, card_count)
+    card_count      = card_count or lib_battle_common.get_draw_card_count()
+    local hand_size = lib_battle_common.get_hand_size()
+    lib_battle_common.dlog("[lib_battle_ai] == alpha_draw_random == card_count=" .. tostring(card_count))
 
     local source = state.alpha_the_source
     if source == nil then
-        return nil, "alpha_the_source not found in session state"
+        return "alpha_the_source not found in session state"
+    end
+
+    if state.alpha_hand == nil then state.alpha_hand = {} end
+    while #state.alpha_hand < hand_size do
+        table.insert(state.alpha_hand, {})
     end
 
     math.randomseed(ctx.timestamp)
 
-    local hand = {}
-    for _ = 1, card_count do
+    local drawn = 0
+    for i = 1, hand_size do
+        if drawn >= card_count then break end
         if #source == 0 then break end
-        local idx = math.random(1, #source)
-        table.insert(hand, source[idx])
-        table.remove(source, idx)
-    end
-
-    for i = #hand + 1, card_count do hand[i] = {} end
-
-    for i, hand_card in ipairs(hand) do
-        if hand_card.item_definition_code_name ~= nil and hand_card.item_definition_code_name ~= "" then
-            hand_card.slot_index  = start_slot + i - 1
-            hand_card.trigger     = false
-            hand_card.stun_remain = 0
-        end
-    end
-
-    for _, hand_card in ipairs(hand) do
-        if hand_card.inventory_item_id ~= nil and hand_card.inventory_item_id ~= "" then
+        local slot = state.alpha_hand[i]
+        if slot == nil or slot.inventory_item_id == nil or slot.inventory_item_id == "" then
+            local idx  = math.random(1, #source)
+            local card = source[idx]
+            table.remove(source, idx)
+            card.slot_index  = i - 1
+            card.trigger     = false
+            card.stun_remain = 0
+            state.alpha_hand[i] = card
             lib_battle_common.append_client_action(state,
-                "alpha_source_to_hand:" .. hand_card.inventory_item_id .. "," .. (hand_card.slot_index or 0))
+                "alpha_source_to_hand:" .. card.inventory_item_id .. "," .. tostring(card.slot_index))
+            drawn = drawn + 1
         end
     end
-    lib_battle_common.dlog("[lib_battle_ai] alpha_draw_random client_actions added: " .. tostring(#hand) .. " cards")
 
-    return hand, nil
+    lib_battle_common.dlog("[lib_battle_ai] alpha_draw_random: drawn=" .. tostring(drawn))
+    return nil
 end
 
 -- ── omega_draw_random ─────────────────────────────────────────────────────────
@@ -305,9 +305,12 @@ function omega_end_turn(state)
     lib_battle_common.dlog("[lib_battle_ai] == omega_end_turn ==")
     state.alpha_defending = false
     state.turn = (state.turn or 0) + 1
-    state.metadata.next_move = "alpha_turn"
     lib_battle_common.dlog("[lib_battle_ai] omega_end_turn: alpha_defending=false, turn=" ..
-    tostring(state.turn) .. ", next_move=alpha_turn")
+    tostring(state.turn))
+    lib_battle_common.append_client_action(state, "omega_turn_end:" .. tostring(state.turn))
+    alpha_draw_random(state)
+    state.metadata.next_move = "alpha_draw"
+    lib_battle_common.dlog("[lib_battle_ai] omega_end_turn: next_move=alpha_draw")
 end
 
 -- ── omega_planning_to_attack ──────────────────────────────────────────────────

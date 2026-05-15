@@ -83,6 +83,7 @@ local function advance_turn_to_omega(state)
     state.turn = (state.turn or 0) + 1
     lib_battle_common.dlog("[alpha_turn_end] turn advanced to " .. tostring(state.turn) .. ", next_move = omega_turn")
     lib_battle_common.append_client_action(state, "alpha_take_lamp")
+    lib_battle_common.append_client_action(state, "alpha_turn_end:" .. tostring(state.turn))
 end
 
 local function persist_battle_state(session_id, state)

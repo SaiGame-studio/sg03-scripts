@@ -97,6 +97,12 @@ function get_draw_card_count()
     return 2
 end
 
+-- ─── get_hand_size ───────────────────────────────────────────────────────────
+-- Returns the maximum number of card slots in a player's hand.
+function get_hand_size()
+    return 5
+end
+
 -- ─── dlog ────────────────────────────────────────────────────────────────────
 -- Appends msg to output.debug_log only when ctx.game.status == "development".
 -- Safe to call unconditionally; no-ops in production.
