@@ -147,7 +147,7 @@ end
 function goblin_shaman_deploy(state)
     lib_battle_common.dlog("[entity_ai] == goblin_shaman.deploy ==")
 
-    local SLOT_COUNT       = 5
+    local SLOT_COUNT       = lib_battle_common.get_hand_size()
     local omega_front_line = state.omega_front_line or {}
     local omega_back_line  = state.omega_back_line  or {}
     local deployed_ids     = {}
