@@ -26,7 +26,7 @@ require "lib_battle_entity_ai"
 -- (alpha_hand + alpha_front_line + alpha_back_line) — no item may appear
 -- or disappear.
 
-local SLOT_COUNT = 5
+local SLOT_COUNT = lib_battle_common.get_hand_size()
 
 local validate_payload                   -- forward declaration
 local build_lines                        -- forward declaration
