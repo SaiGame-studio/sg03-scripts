@@ -154,6 +154,7 @@ build_state = function(enemy, selected_mode, player_the_source, enemy_the_source
         action             = 0,  -- each action is one card played
         status             = "active",
         alpha_defending    = false,
+        omega_defending    = false,
         client_actions     = {},
         omega_planning     = {},
     }

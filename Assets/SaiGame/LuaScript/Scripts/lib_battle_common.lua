@@ -213,6 +213,7 @@ local function write_battle_meta_output(state)
     output.metadata        = state.metadata
     output.omega_planning  = state.omega_planning
     output.alpha_defending = state.alpha_defending
+    output.omega_defending = state.omega_defending
     output.client_actions  = state.client_actions
 end
 

@@ -44,6 +44,11 @@ local function main()
     local state, state_err = lib_battle_common.load_session(session_id)
     if state_err ~= nil then output.error = state_err ; return end
 
+    if state.metadata == nil or state.metadata.next_move ~= "alpha_turn" then
+        output.error = "alpha_card_deploy can only run when next_move is alpha_turn"
+        return
+    end
+
     if state.alpha_hand == nil or #state.alpha_hand == 0 then
         output.error = "alpha_hand is empty; run init_cards first"
         return

@@ -265,13 +265,13 @@ local function main()
     state.action     = (state.action or 0) + 1
     state.updated_at = ctx.timestamp
     if state.metadata == nil then state.metadata = {} end
-    state.metadata.next_move = "card_deploy"
+    state.metadata.next_move = "alpha_turn"
 
     local save_err = game.battle_session_update(session_id, state)
     if save_err ~= nil then
         output.error = save_err; return
     end
-    lib_battle_common.dlog("[init_cards] session persisted, next_move = card_deploy")
+    lib_battle_common.dlog("[init_cards] session persisted, next_move = alpha_turn")
 
     lib_battle_common.battle_status()
 end
