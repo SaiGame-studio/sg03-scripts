@@ -1,4 +1,6 @@
 require "lib_battle_common"
+require "lib_battle_ai"
+require "lib_battle_entity_ai"
 
 -- init_cards
 -- Draws opening hands for both alpha and omega.
@@ -238,6 +240,12 @@ local function omega_init_cards(state)
     return nil
 end
 
+-- ─── Omega deploy dispatch ──────────────────────────────────────────────────
+
+local function run_omega_deploy(state)
+    return lib_battle_entity_ai.deploy_enemy(state)
+end
+
 local function main()
     local session_id, sid_err = lib_battle_common.resolve_session_id()
     if sid_err ~= nil then
@@ -258,6 +266,11 @@ local function main()
     local omega_err = omega_init_cards(state)
     if omega_err ~= nil then
         output.error = omega_err; return
+    end
+
+    local deploy_err = run_omega_deploy(state)
+    if deploy_err ~= nil then
+        output.error = deploy_err; return
     end
 
     lib_battle_common.append_client_action(state, "alpha_take_lamp")

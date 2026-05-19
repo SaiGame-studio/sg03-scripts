@@ -5,8 +5,6 @@ require "lib_battle_entity_ai"
 -- alpha_turn_end.lua
 -- End-of-turn cleanup for Alpha's turn.
 
-local enemy_deploy_dispatch           -- table: enemy_entity_key → deploy function
-local deploy_goblin_shaman            -- forward declaration
 local enemy_attack_planning_dispatch  -- table: enemy_entity_key → planning function
 local plan_goblin_shaman              -- forward declaration
 
@@ -47,27 +45,8 @@ end
 -- Dispatches to the enemy-specific deploy function by enemy_entity_key.
 -- Returns err or nil.
 local function run_omega_deploy(state)
-    local enemy_key = get_enemy_key(state)
-    lib_battle_common.dlog("[alpha_turn_end] run_omega_deploy enemy_key=" .. tostring(enemy_key))
-    local deploy_fn = enemy_key ~= nil and enemy_deploy_dispatch[enemy_key] or nil
-    if deploy_fn == nil then
-        return "no deploy handler for enemy_entity_key: " .. tostring(enemy_key)
-    end
-    local o_front, o_back, o_hand, deploy_err = deploy_fn(state)
-    if deploy_err ~= nil then return deploy_err end
-    state.omega_front_line = o_front
-    state.omega_back_line  = o_back
-    state.omega_hand       = o_hand
-    return nil
+    return lib_battle_entity_ai.deploy_enemy(state)
 end
-
-deploy_goblin_shaman = function(state)
-    return lib_battle_entity_ai.goblin_shaman_deploy(state)
-end
-
-enemy_deploy_dispatch = {
-    goblin_shaman = deploy_goblin_shaman,
-}
 
 plan_goblin_shaman = function(state)
     return lib_battle_entity_ai.goblin_shaman_plan_attack(state)

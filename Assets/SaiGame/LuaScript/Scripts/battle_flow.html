@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <title>Battle Flow</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', sans-serif; background: #0f1117; color: #e2e8f0; padding: 32px; }
+    h1 { text-align: center; font-size: 1.4rem; color: #7dd3fc; margin-bottom: 8px; letter-spacing: 2px; text-transform: uppercase; }
+    .version { text-align: center; font-size: 0.7rem; color: #475569; letter-spacing: 1px; margin-bottom: 28px; }
+
+    .flow { display: flex; flex-direction: column; align-items: center; gap: 0; }
+
+    /* ── Section headers ── */
+    .section-label {
+      font-size: 0.65rem; letter-spacing: 3px; text-transform: uppercase;
+      color: #64748b; margin: 28px 0 10px 0;
+    }
+
+    /* ── Node ── */
+    .node {
+      border-radius: 10px; padding: 12px 24px; min-width: 280px; text-align: center;
+      font-size: 0.88rem; font-weight: 600; position: relative;
+      border: 1.5px solid transparent;
+    }
+    .node .sub { font-size: 0.72rem; font-weight: 400; color: #94a3b8; margin-top: 4px; }
+
+    .node-setup   { background: #1e293b; border-color: #334155; color: #e2e8f0; }
+    .node-alpha   { background: #1e3a5f; border-color: #3b82f6; color: #bfdbfe; }
+    .node-omega   { background: #3b1f1f; border-color: #ef4444; color: #fecaca; }
+    .node-end     { background: #1a2e1a; border-color: #22c55e; color: #bbf7d0; }
+    .node-util    { background: #2a1f3d; border-color: #a855f7; color: #e9d5ff; }
+    .node-lib     { background: #1c1c2e; border-color: #475569; color: #94a3b8; }
+    .node-missing { background: #2d1c0a; border-color: #f97316; color: #fed7aa; }
+    .node-warn    { background: #2d200a; border-color: #eab308; color: #fef08a; }
+
+    /* ── Arrow ── */
+    .arrow { display: flex; flex-direction: column; align-items: center; gap: 0; }
+    .arrow-line { width: 2px; height: 20px; background: #334155; }
+    .arrow-head { width: 0; height: 0;
+      border-left: 6px solid transparent;
+      border-right: 6px solid transparent;
+      border-top: 8px solid #334155;
+    }
+    .arrow-label {
+      font-size: 0.65rem; color: #64748b; margin: 2px 0;
+      background: #0f1117; padding: 1px 6px; border-radius: 4px;
+      white-space: nowrap;
+    }
+
+    /* ── Loop box ── */
+    .loop-box {
+      border: 1.5px dashed #3b82f6; border-radius: 14px;
+      padding: 20px 32px; display: flex; flex-direction: column;
+      align-items: center; gap: 0; position: relative;
+    }
+    .loop-box-label {
+      position: absolute; top: -11px; left: 20px;
+      background: #0f1117; padding: 0 8px;
+      font-size: 0.65rem; color: #3b82f6; letter-spacing: 2px; text-transform: uppercase;
+    }
+    .loop-back {
+      font-size: 0.65rem; color: #3b82f6; margin-top: 8px;
+      border: 1px dashed #3b4e6e; border-radius: 6px; padding: 3px 10px;
+    }
+
+    /* ── Libraries row ── */
+    .lib-row { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; margin-top: 8px; }
+    .lib-row .node { min-width: 180px; }
+
+    /* ── Warnings ── */
+    .warn-section { margin-top: 40px; width: 100%; max-width: 700px; }
+    .warn-section h2 { font-size: 0.75rem; color: #f97316; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 12px; }
+    .warn-row { display: flex; gap: 12px; flex-direction: column; }
+    .warn-item { border-radius: 8px; padding: 10px 16px; font-size: 0.8rem; }
+
+    /* ── branch ── */
+    .branch { display: flex; gap: 16px; align-items: flex-start; }
+    .branch-line { display: flex; flex-direction: column; align-items: center; gap: 0; }
+    .branch-label { font-size: 0.63rem; color: #64748b; white-space: nowrap; margin-bottom: 4px; }
+  </style>
+</head>
+<body>
+  <h1>⚔ Battle Flow</h1>
+  <div class="version">v1</div>
+
+  <div class="flow">
+
+    <!-- ─── SETUP ─── -->
+    <div class="section-label">⚙ Setup</div>
+
+    <div class="node node-util">
+      get_card_definitions
+      <div class="sub">fetch item defs (optional, trước battle)</div>
+    </div>
+    <div class="arrow"><div class="arrow-line"></div><div class="arrow-head"></div></div>
+
+    <div class="node node-setup">
+      battle_start
+      <div class="sub">tạo session · load item_defs · load sources · next_move = "init_cards"</div>
+    </div>
+    <div class="arrow">
+      <div class="arrow-line"></div>
+      <div class="arrow-label">next_move = "init_cards"</div>
+      <div class="arrow-line"></div>
+      <div class="arrow-head"></div>
+    </div>
+
+    <div class="node node-setup">
+      init_cards
+      <div class="sub">rút bài mở đầu: alpha (5 cards), omega (N cards) · next_move = "alpha_turn"</div>
+    </div>
+    <div class="arrow">
+      <div class="arrow-line"></div>
+      <div class="arrow-label">next_move = "alpha_turn"</div>
+      <div class="arrow-line"></div>
+      <div class="arrow-head"></div>
+    </div>
+
+    <!-- ─── ALPHA TURN ─── -->
+    <div class="loop-box">
+      <div class="loop-box-label">🔵 Alpha Turn Loop</div>
+
+      <div class="node node-alpha">
+        alpha_card_deploy
+        <div class="sub">alpha sắp xếp bài lên field &nbsp;·&nbsp; yêu cầu next_move = "alpha_turn"</div>
+      </div>
+      <div class="arrow"><div class="arrow-line"></div><div class="arrow-head"></div></div>
+
+      <div class="node node-alpha">
+        alpha_attacking &nbsp;<span style="font-size:0.7rem;color:#60a5fa">× N</span>
+        <div class="sub">
+          yêu cầu omega_defending = true<br>
+          ├ defender = "omega_hp" → trừ omega_hp trực tiếp<br>
+          └ defender = card &nbsp;&nbsp;&nbsp;&nbsp;→ plan → omega react → resolve
+        </div>
+      </div>
+      <div class="arrow"><div class="arrow-line"></div><div class="arrow-head"></div></div>
+
+      <div class="node node-alpha">
+        alpha_turn_end
+        <div class="sub">① reset_turn_cards</div>
+      </div>
+      <div class="arrow"><div class="arrow-line"></div><div class="arrow-head"></div></div>
+
+      <div class="node node-omega" style="min-width:320px;">
+        omega draw &amp; deploy
+        <div class="sub">
+          ② omega rút bài ngẫu nhiên từ omega_the_source<br>
+          ③ omega deploy bài lên field &nbsp;(lib_battle_entity_ai · entity_key)<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;characters → omega_front_line · others → omega_back_line
+        </div>
+      </div>
+      <div class="arrow"><div class="arrow-line"></div><div class="arrow-head"></div></div>
+
+      <div class="node node-alpha">
+        omega_planning
+        <div class="sub">
+          ④ omega lên kế hoạch tấn công → state.omega_planning<br>
+          ⑤ alpha_defending = true · next_move = "omega_turn"
+        </div>
+      </div>
+
+      <div class="loop-back">↓ chuyển sang Omega Turn</div>
+    </div>
+
+    <div class="arrow">
+      <div class="arrow-line"></div>
+      <div class="arrow-label">next_move = "omega_turn" · alpha_defending = true</div>
+      <div class="arrow-line"></div>
+      <div class="arrow-head"></div>
+    </div>
+
+    <!-- ─── OMEGA TURN ─── -->
+    <div class="loop-box" style="border-color:#ef4444;">
+      <div class="loop-box-label" style="color:#ef4444;">🔴 Omega Turn</div>
+
+      <div class="node node-omega">
+        alpha_defending_end
+        <div class="sub">
+          thực thi omega_planning (omega đánh card alpha)<br>
+          clear omega_planning · re-plan cho lượt sau
+        </div>
+      </div>
+      <div class="arrow">
+        <div class="arrow-line" style="background:#4b1c1c;"></div>
+        <div class="arrow-label">omega_end_turn (lib_battle_ai)</div>
+        <div class="arrow-line" style="background:#4b1c1c;"></div>
+        <div class="arrow-head" style="border-top-color:#4b1c1c;"></div>
+      </div>
+      <div class="node node-omega" style="font-size:0.78rem; min-width:260px;">
+        omega_end_turn
+        <div class="sub">alpha_defending = false · alpha rút bài · next_move = "alpha_turn"</div>
+      </div>
+
+      <div class="loop-back" style="color:#ef4444;border-color:#5a2020;">↑ quay lại Alpha Turn Loop</div>
+    </div>
+
+    <div class="arrow">
+      <div class="arrow-line"></div>
+      <div class="arrow-label">khi HP ≤ 0 hoặc client kết thúc</div>
+      <div class="arrow-line"></div>
+      <div class="arrow-head"></div>
+    </div>
+
+    <!-- ─── END ─── -->
+    <div class="section-label">🏁 Kết thúc</div>
+    <div class="node node-end">
+      battle_end
+      <div class="sub">xác định winner · đóng session · trả về winner + HP</div>
+    </div>
+
+    <!-- ─── UTILITIES ─── -->
+    <div class="section-label">🛠 Utilities (gọi bất cứ lúc nào)</div>
+    <div class="lib-row">
+      <div class="node node-util" style="min-width:200px;">
+        battle_status
+        <div class="sub">trả về state hiện tại</div>
+      </div>
+      <div class="node node-util" style="min-width:200px;">
+        battle_debug_turn
+        <div class="sub">chỉnh HP alpha/omega thủ công (dev only)</div>
+      </div>
+    </div>
+
+    <!-- ─── LIBRARIES ─── -->
+    <div class="section-label">📦 Libraries (require, không gọi trực tiếp)</div>
+    <div class="lib-row">
+      <div class="node node-lib">lib_battle_common</div>
+      <div class="node node-lib">lib_battle_ai</div>
+      <div class="node node-lib">lib_battle_entity_ai</div>
+      <div class="node node-lib">lib_card_ability</div>
+    </div>
+
+    <!-- ─── WARNINGS ─── -->
+    <div class="warn-section">
+      <h2>⚠ Cảnh báo</h2>
+      <div class="warn-row">
+        <div class="warn-item node-missing">
+          <strong>card_deploy.lua</strong> — file bị mất, chỉ còn <code>.meta</code>. Script này từng tồn tại nhưng đã bị xóa hoặc chưa được tạo lại.
+        </div>
+        <div class="warn-item node-warn">
+          <strong>omega_defending</strong> — được check trong <code>alpha_attacking</code> nhưng chưa có script nào set nó thành <code>true</code>. Cần tạo cơ chế để bật omega_defending trước khi alpha có thể tấn công.
+        </div>
+      </div>
+    </div>
+
+  </div>
+</body>
+</html>

@@ -213,4 +213,25 @@ function goblin_shaman_plan_attack(state)
     return nil
 end
 
+-- ─── Shared dispatch ───────────────────────────────────────────────────────────────
+
+-- Looks up the deploy function for the current enemy_entity_key, runs it,
+-- and writes results back into state. Returns err or nil.
+function deploy_enemy(state)
+    local enemy_key = state.metadata ~= nil and state.metadata.enemy_entity_key or nil
+    lib_battle_common.dlog("[entity_ai] deploy_enemy enemy_key=" .. tostring(enemy_key))
+    local dispatch = {
+        goblin_shaman = goblin_shaman_deploy,
+    }
+    local deploy_fn = enemy_key ~= nil and dispatch[enemy_key] or nil
+    if deploy_fn == nil then
+        return "no deploy handler for enemy_entity_key: " .. tostring(enemy_key)
+    end
+    local o_front, o_back, o_hand, deploy_err = deploy_fn(state)
+    if deploy_err ~= nil then return deploy_err end
+    state.omega_front_line = o_front
+    state.omega_back_line  = o_back
+    state.omega_hand       = o_hand
+    return nil
+end
 
