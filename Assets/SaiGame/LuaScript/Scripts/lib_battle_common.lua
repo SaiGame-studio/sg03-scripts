@@ -52,7 +52,6 @@ function reset_card_turn_state(item_defs, reset_card)
             end
         end
     end
-    reset_card.trigger               = false
     reset_card.final_def             = base_def
     reset_card.total_damage_received = 0
 end
@@ -79,6 +78,7 @@ function reset_turn_cards(state)
     for _, line in ipairs(lines) do
         for _, reset_card in ipairs(line) do
             reset_card_turn_state(state.item_defs, reset_card)
+            reset_card.trigger = false
         end
     end
 end
