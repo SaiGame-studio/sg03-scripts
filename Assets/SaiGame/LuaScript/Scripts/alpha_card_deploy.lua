@@ -91,8 +91,6 @@ local function main()
 
     state.action     = (state.action or 0) + 1
     state.updated_at = ctx.timestamp
-    if state.metadata == nil then state.metadata = {} end
-    state.metadata.next_move = "omega_deploy"
 
     local save_err = game.battle_session_update(session_id, state)
     if save_err ~= nil then output.error = save_err ; return end

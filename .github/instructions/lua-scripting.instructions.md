@@ -13,6 +13,9 @@ Use this package's contract files as the source of truth:
 - `AGENT_PROMPT.md`
 - `.lua-libs/ss-go-game-api.lua`
 
+## General
+- NEVER do anything beyond what the user explicitly requests. No extra features, no extra fields, no assumptions.
+
 ## Mandatory Rules
 
 - Use only Lua 5.1 syntax supported by gopher-lua.
