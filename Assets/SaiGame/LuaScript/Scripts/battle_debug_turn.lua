@@ -26,6 +26,7 @@ local function main()
 
     local state, load_err = load_session(session_id)
     if load_err ~= nil then output.error = load_err ; return end
+    if state.status == "completed" then output.error = "battle is already completed" ; return end
 
     local result, apply_err = apply_hp_delta(session_id, state, payload.target, payload.hp)
     if apply_err ~= nil then output.error = apply_err ; return end

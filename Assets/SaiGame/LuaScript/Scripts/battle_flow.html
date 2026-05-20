@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <title>Battle Flow</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', sans-serif; background: #0f1117; color: #e2e8f0; padding: 32px; }
+    h1 { text-align: center; font-size: 1.4rem; color: #7dd3fc; margin-bottom: 8px; letter-spacing: 2px; text-transform: uppercase; }
+    .version { text-align: center; font-size: 0.7rem; color: #475569; letter-spacing: 1px; margin-bottom: 28px; }
+
+    .flow { display: flex; flex-direction: column; align-items: center; gap: 0; }
+
+    /* ── Section headers ── */
+    .section-label {
+      font-size: 0.65rem; letter-spacing: 3px; text-transform: uppercase;
+      color: #64748b; margin: 28px 0 10px 0;
+    }
+
+    /* ── Node ── */
+    .node {
+      border-radius: 10px; padding: 12px 24px; min-width: 280px; text-align: center;
+      font-size: 0.88rem; font-weight: 600; position: relative;
+      border: 1.5px solid transparent;
+    }
+    .node .sub { font-size: 0.72rem; font-weight: 400; color: #94a3b8; margin-top: 4px; }
+
+    .node-setup   { background: #1e293b; border-color: #334155; color: #e2e8f0; }
+    .node-alpha   { background: #1e3a5f; border-color: #3b82f6; color: #bfdbfe; }
+    .node-omega   { background: #3b1f1f; border-color: #ef4444; color: #fecaca; }
+    .node-end     { background: #1a2e1a; border-color: #22c55e; color: #bbf7d0; }
+    .node-util    { background: #2a1f3d; border-color: #a855f7; color: #e9d5ff; }
+    .node-lib     { background: #1c1c2e; border-color: #475569; color: #94a3b8; }
+    .node-missing { background: #2d1c0a; border-color: #f97316; color: #fed7aa; }
+    .node-warn    { background: #2d200a; border-color: #eab308; color: #fef08a; }
+
+    /* ── Arrow ── */
+    .arrow { display: flex; flex-direction: column; align-items: center; gap: 0; }
+    .arrow-line { width: 2px; height: 20px; background: #334155; }
+    .arrow-head { width: 0; height: 0;
+      border-left: 6px solid transparent;
+      border-right: 6px solid transparent;
+      border-top: 8px solid #334155;
+    }
+    .arrow-label {
+      font-size: 0.65rem; color: #64748b; margin: 2px 0;
+      background: #0f1117; padding: 1px 6px; border-radius: 4px;
+      white-space: nowrap;
+    }
+
+    /* ── Loop box ── */
+    .loop-box {
+      border: 1.5px dashed #3b82f6; border-radius: 14px;
+      padding: 20px 32px; display: flex; flex-direction: column;
+      align-items: center; gap: 0; position: relative;
+    }
+    .loop-box-label {
+      position: absolute; top: -11px; left: 20px;
+      background: #0f1117; padding: 0 8px;
+      font-size: 0.65rem; color: #3b82f6; letter-spacing: 2px; text-transform: uppercase;
+    }
+    .loop-back {
+      font-size: 0.65rem; color: #3b82f6; margin-top: 8px;
+      border: 1px dashed #3b4e6e; border-radius: 6px; padding: 3px 10px;
+    }
+
+    /* ── Libraries row ── */
+    .lib-row { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; margin-top: 8px; }
+    .lib-row .node { min-width: 180px; }
+
+    /* ── Warnings ── */
+    .warn-section { margin-top: 40px; width: 100%; max-width: 700px; }
+    .warn-section h2 { font-size: 0.75rem; color: #f97316; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 12px; }
+    .warn-row { display: flex; gap: 12px; flex-direction: column; }
+    .warn-item { border-radius: 8px; padding: 10px 16px; font-size: 0.8rem; }
+
+    /* ── branch ── */
+    .branch { display: flex; gap: 16px; align-items: flex-start; }
+    .branch-line { display: flex; flex-direction: column; align-items: center; gap: 0; }
+    .branch-label { font-size: 0.63rem; color: #64748b; white-space: nowrap; margin-bottom: 4px; }
+  </style>
+</head>
+<body>
+  <h1>⚔ Battle Flow</h1>
+  <div class="version">v3</div>
+
+  <div class="flow">
+
+    <!-- ─── SETUP ─── -->
+    <div class="section-label">⚙ Setup</div>
+
+    <div class="node node-util" style="min-width:340px;text-align:left;">
+      <div style="text-align:center;font-weight:700;margin-bottom:8px;">get_card_definitions</div>
+      <div class="sub">
+        • gọi trước khi bắt đầu battle (optional)<br>
+        • trả về danh sách item definitions để client biết stats của từng card
+      </div>
+    </div>
+    <div class="arrow"><div class="arrow-line"></div><div class="arrow-head"></div></div>
+
+    <div class="node node-setup" style="min-width:400px;text-align:left;">
+      <div style="text-align:center;font-weight:700;margin-bottom:8px;">battle_start</div>
+      <div class="sub">
+        • validate: battle_mode (fast/normal/long) · enemy_entity_key · preset_instance_id<br>
+        • check: không có session active<br>
+        • resolve_enemy: game.get_entity_def_by_key(enemy_entity_key)<br>
+        • check enemy deck: 25 &lt; total_cards &lt; 52<br>
+        • verify_player_preset: 25 &lt; deck_cards &lt; 52<br>
+        • load player_the_source (từ preset slots)<br>
+        • load enemy_the_source (từ enemy.abilities · card_count mỗi ability · gán id mới)<br>
+        • resolve_mode → HP: fast=4000 · normal=7000 · long=16000<br>
+        • load item_defs cho tất cả cards (player + enemy)<br>
+        • battle_session_create(state) → session_id<br>
+        • client: alpha_source_spawn_card:N · omega_source_spawn_card:N<br>
+        • next_move = "init_cards"
+      </div>
+    </div>
+    <div class="arrow">
+      <div class="arrow-line"></div>
+      <div class="arrow-label">next_move = "init_cards"</div>
+      <div class="arrow-line"></div>
+      <div class="arrow-head"></div>
+    </div>
+
+    <div class="node node-setup" style="min-width:400px;text-align:left;">
+      <div style="text-align:center;font-weight:700;margin-bottom:8px;">init_cards</div>
+      <div class="sub">
+        ① <strong style="color:#bfdbfe">alpha_init_cards</strong><br>
+        &nbsp;&nbsp;&nbsp;• 3 preset cards (choose_card_1/2/3 từ alpha_preset_metadata, match by inventory_item_id)<br>
+        &nbsp;&nbsp;&nbsp;• 2 random cards từ alpha_the_source<br>
+        &nbsp;&nbsp;&nbsp;→ state.alpha_hand (5 cards) &nbsp;·&nbsp; client: alpha_source_to_hand<br><br>
+        ② <strong style="color:#fecaca">omega_init_cards</strong><br>
+        &nbsp;&nbsp;&nbsp;• 3 preset cards (choose_card_1/2/3 từ metadata.omega.metadata, match by code_name)<br>
+        &nbsp;&nbsp;&nbsp;• 2 random cards từ omega_the_source &nbsp;·&nbsp; gán id/inventory_item_id mới<br>
+        &nbsp;&nbsp;&nbsp;→ state.omega_hand (5 cards) &nbsp;·&nbsp; client: omega_source_to_hand<br><br>
+        ③ <strong style="color:#e9d5ff">deploy_enemy</strong> (lib_battle_entity_ai)<br>
+        &nbsp;&nbsp;&nbsp;• dispatch theo enemy_entity_key (goblin_shaman → goblin_shaman_deploy)<br>
+        &nbsp;&nbsp;&nbsp;• characters → omega_front_line (random face_up)<br>
+        &nbsp;&nbsp;&nbsp;• totem_pulse → omega_back_line (random face_up each)<br>
+        &nbsp;&nbsp;&nbsp;• xóa deployed cards khỏi omega_hand<br><br>
+        ④ client action: <code>alpha_take_lamp</code><br>
+        ⑤ next_move = "alpha_turn"
+      </div>
+    </div>
+    <div class="arrow">
+      <div class="arrow-line"></div>
+      <div class="arrow-label">next_move = "alpha_turn"</div>
+      <div class="arrow-line"></div>
+      <div class="arrow-head"></div>
+    </div>
+
+    <!-- ─── ALPHA TURN ─── -->
+    <div class="loop-box">
+      <div class="loop-box-label">🔵 Alpha Turn Loop</div>
+
+      <div class="node node-alpha" style="min-width:400px;text-align:left;">
+        <div style="text-align:center;font-weight:700;margin-bottom:8px;">alpha_card_deploy</div>
+        <div class="sub">
+          • yêu cầu next_move = "alpha_turn"<br>
+          • payload: hand[] · front_line[{id,face_up,slot_index}] · back_line[...]<br>
+          • validate: union(hand+front+back payload) == union(alpha_hand+front+back state)<br>
+          • giới hạn: tối đa 1 card mới lên front_line mỗi lượt<br>
+          • reset card state (final_def, stun_remain) cho mỗi deployed card<br>
+          • client: alpha_hand_to_front / alpha_hand_to_back / alpha_front_to_back / ...
+        </div>
+      </div>
+      <div class="arrow"><div class="arrow-line"></div><div class="arrow-head"></div></div>
+
+      <div class="node node-alpha" style="min-width:400px;text-align:left;">
+        <div style="text-align:center;font-weight:700;margin-bottom:8px;">alpha_attacking &nbsp;<span style="font-size:0.7rem;color:#60a5fa">× N</span></div>
+        <div class="sub">
+          • yêu cầu omega_defending = true<br><br>
+          ├ <strong style="color:#bfdbfe">defender = "omega_hp"</strong><br>
+          &nbsp;&nbsp;&nbsp;• load attacker only (check trigger=false)<br>
+          &nbsp;&nbsp;&nbsp;• damage = attacker.base_atk · omega_hp -= damage<br>
+          &nbsp;&nbsp;&nbsp;• attacker.trigger = true<br>
+          &nbsp;&nbsp;&nbsp;• client: alpha_attack_omega_hp:id,damage,hp_remaining<br><br>
+          └ <strong style="color:#bfdbfe">defender = card</strong><br>
+          &nbsp;&nbsp;&nbsp;① plan: pending_attack = {attacker_id, defender_id, damage}<br>
+          &nbsp;&nbsp;&nbsp;② omega react: goblin_shaman → totem_pulse defend (có thể tăng defender.final_def)<br>
+          &nbsp;&nbsp;&nbsp;③ resolve: apply pending_attack.damage_dealt · nếu total_dmg &gt; final_def → card → void<br>
+          &nbsp;&nbsp;&nbsp;• client: card_attack_card / card_defeated
+        </div>
+      </div>
+      <div class="arrow"><div class="arrow-line"></div><div class="arrow-head"></div></div>
+
+      <div class="node node-alpha" style="min-width:400px;text-align:left;">
+        <div style="text-align:center;font-weight:700;margin-bottom:8px;">alpha_turn_end</div>
+        <div class="sub">
+          ① reset_turn_cards: trigger=false · stun_remain-- trên tất cả cards của cả 2 field<br>
+          ② client action: <code>omega_take_lamp</code><br>
+          ③ omega rút N bài ngẫu nhiên từ omega_the_source → state.omega_hand<br>
+          &nbsp;&nbsp;&nbsp;• client: omega_source_to_hand:id,slot × N<br>
+          ④ deploy_enemy (lib_battle_entity_ai · dispatch theo enemy_entity_key)<br>
+          &nbsp;&nbsp;&nbsp;• characters → omega_front_line (random face_up)<br>
+          &nbsp;&nbsp;&nbsp;• totem_pulse → omega_back_line (random face_up each)<br>
+          &nbsp;&nbsp;&nbsp;• xóa deployed cards khỏi omega_hand<br>
+          ⑤ omega_planning_to_attack → state.omega_planning<br>
+          &nbsp;&nbsp;&nbsp;• chọn 1 untriggered character từ omega_front_line<br>
+          &nbsp;&nbsp;&nbsp;• target: alpha_front_line card có final_def thấp nhất (fallback: back_line)<br>
+          &nbsp;&nbsp;&nbsp;• client: omega_plan_attack:attacker_id,defender_id<br>
+          &nbsp;&nbsp;&nbsp;• alpha_defending = true<br>
+          ⑥ client: <code>alpha_take_lamp</code> · <code>alpha_turn_end:turn</code><br>
+          ⑦ next_move = "omega_turn"
+        </div>
+      </div>
+
+      <div class="loop-back">↓ chuyển sang Omega Turn</div>
+    </div>
+
+    <div class="arrow">
+      <div class="arrow-line"></div>
+      <div class="arrow-label">next_move = "omega_turn" · alpha_defending = true</div>
+      <div class="arrow-line"></div>
+      <div class="arrow-head"></div>
+    </div>
+
+    <!-- ─── OMEGA TURN ─── -->
+    <div class="loop-box" style="border-color:#ef4444;">
+      <div class="loop-box-label" style="color:#ef4444;">🔴 Omega Turn</div>
+
+      <div class="node node-omega" style="min-width:400px;text-align:left;">
+        <div style="text-align:center;font-weight:700;margin-bottom:8px;">alpha_defending_end</div>
+        <div class="sub">
+          ① thực thi toàn bộ state.omega_planning (card_attack_card × N):<br>
+          &nbsp;&nbsp;&nbsp;• nếu attacker không còn trên field → bỏ qua (alpha phòng thủ thành công)<br>
+          &nbsp;&nbsp;&nbsp;• plan: pending_attack = {attacker_id, defender_id, damage}<br>
+          &nbsp;&nbsp;&nbsp;• (phase 2: reserved cho alpha defend reactions tương lai)<br>
+          &nbsp;&nbsp;&nbsp;• resolve: apply final damage · nếu defeated → card → void<br>
+          &nbsp;&nbsp;&nbsp;• client: omega_card_move_back_to_holder:id / card_defeated<br>
+          ② clear omega_planning = {}<br>
+          ③ omega_planning_to_attack(state) — (lib_battle_ai)<br>
+          &nbsp;&nbsp;&nbsp;• nếu không còn untriggered attacker trên omega_front_line:<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;→ <strong>omega_end_turn</strong>: alpha_defending=false · alpha rút bài ngẫu nhiên<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;→ client: omega_turn_end:turn · next_move = "alpha_turn"<br>
+          &nbsp;&nbsp;&nbsp;• nếu còn attacker: lên kế hoạch tấn công cho vòng tiếp
+        </div>
+      </div>
+
+      <div class="loop-back" style="color:#ef4444;border-color:#5a2020;">↑ quay lại Alpha Turn Loop</div>
+    </div>
+
+    <div class="arrow">
+      <div class="arrow-line"></div>
+      <div class="arrow-label">khi HP ≤ 0 hoặc client kết thúc</div>
+      <div class="arrow-line"></div>
+      <div class="arrow-head"></div>
+    </div>
+
+    <!-- ─── END ─── -->
+    <div class="section-label">🏁 Kết thúc</div>
+    <div class="node node-end" style="min-width:340px;text-align:left;">
+      <div style="text-align:center;font-weight:700;margin-bottom:8px;">battle_end</div>
+      <div class="sub">
+        • determine_winner: alpha_hp &gt; omega_hp → "alpha", ngược lại → "omega"<br>
+        • end_session: đóng battle session<br>
+        • nếu winner = "alpha" → open_drop_packs → output.drops<br>
+        • output: session_id · status="ended" · winner · turn · alpha_hp · omega_hp
+      </div>
+    </div>
+
+    <!-- ─── UTILITIES ─── -->
+    <div class="section-label">🛠 Utilities (gọi bất cứ lúc nào)</div>
+    <div class="lib-row">
+      <div class="node node-util" style="min-width:200px;">
+        battle_status
+        <div class="sub">trả về toàn bộ state: HP · next_move · alpha/omega_defending · client_actions · tất cả lines</div>
+      </div>
+      <div class="node node-util" style="min-width:200px;">
+        battle_debug_turn
+        <div class="sub">chỉnh HP thủ công (dev only)<br>target: "alpha"|"omega" · hp: +heal / -damage</div>
+      </div>
+    </div>
+
+    <!-- ─── LIBRARIES ─── -->
+    <div class="section-label">📦 Libraries (require, không gọi trực tiếp)</div>
+    <div class="lib-row">
+      <div class="node node-lib">lib_battle_common</div>
+      <div class="node node-lib">lib_battle_ai</div>
+      <div class="node node-lib">lib_battle_entity_ai</div>
+      <div class="node node-lib">lib_card_ability</div>
+    </div>
+
+    <!-- ─── WARNINGS ─── -->
+    <div class="warn-section">
+      <h2>⚠ Cảnh báo</h2>
+      <div class="warn-row">
+        <div class="warn-item node-missing">
+          <strong>card_deploy.lua</strong> — file bị mất, chỉ còn <code>.meta</code>. Script này từng tồn tại nhưng đã bị xóa hoặc chưa được tạo lại.
+        </div>
+        <div class="warn-item node-warn">
+          <strong>omega_defending</strong> — được check trong <code>alpha_attacking</code> nhưng chưa có script nào set nó thành <code>true</code>. Cần tạo cơ chế để bật omega_defending trước khi alpha có thể tấn công.
+        </div>
+      </div>
+    </div>
+
+  </div>
+</body>
+</html>

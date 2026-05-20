@@ -184,6 +184,7 @@ local function main()
 
     local state, state_err = lib_battle_common.load_session(session_id)
     if state_err ~= nil then output.error = state_err ; return end
+    if state.status == "completed" then output.error = "battle is already completed" ; return end
     lib_battle_common.dlog("[alpha_defending_end] session loaded: " .. session_id)
 
     local plan_err = execute_omega_planning(state)

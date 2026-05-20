@@ -299,8 +299,8 @@ function deploy_omega_cards(state)
 end
 
 -- ── omega_end_turn ───────────────────────────────────────────────────────────
--- Ends omega's attacking turn: clears alpha_defending and advances next_move
--- to "alpha_turn" so the state machine returns control to alpha.
+-- Ends omega's attacking turn: clears alpha_defending, sets omega_defending,
+-- and advances next_move to "alpha_turn" so the state machine returns control to alpha.
 function omega_end_turn(state)
     lib_battle_common.dlog("[lib_battle_ai] == omega_end_turn ==")
     state.alpha_defending = false
@@ -309,8 +309,10 @@ function omega_end_turn(state)
     tostring(state.turn))
     lib_battle_common.append_client_action(state, "omega_turn_end:" .. tostring(state.turn))
     alpha_draw_random(state)
-    state.metadata.next_move = "alpha_draw"
-    lib_battle_common.dlog("[lib_battle_ai] omega_end_turn: next_move=alpha_draw")
+    state.metadata.next_move = "alpha_turn"
+    state.omega_defending = true
+    lib_battle_common.append_client_action(state, "omega_defending")
+    lib_battle_common.dlog("[lib_battle_ai] omega_end_turn: next_move=alpha_turn, omega_defending=true")
 end
 
 -- ── omega_planning_to_attack ──────────────────────────────────────────────────

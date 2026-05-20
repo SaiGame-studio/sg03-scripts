@@ -112,7 +112,7 @@ function deal_damage_to_character(state, attacker_card, target_card, damage, tar
 
     local prev_damage = target_card.total_damage_received or 0
     target_card.total_damage_received = prev_damage + damage
-    local defeated = target_card.total_damage_received > final_def
+    local defeated = target_card.total_damage_received >= final_def
     lib_battle_common.dlog("[ability] deal_damage: final_def=" .. final_def .. " prev_damage=" .. prev_damage .. " new_total=" .. target_card.total_damage_received .. " defeated=" .. (defeated and "yes" or "no"))
 
     local target_side   = void_key == "alpha_the_void" and "alpha" or "omega"
@@ -249,12 +249,17 @@ local function _handle_spinning_slash(state, attacker_card, event_data)
 end
 
 -- cross_guard: when played as attacker (ability-type), increases the target card's final_def by 200.
+-- Only valid when the target is an azure_blade character.
 local function _handle_cross_guard(state, source_card, event_data)
     lib_battle_common.dlog("== [ability] cross_guard ====================")
     local target_card = (event_data or {}).defender_card
     if target_card == nil then
         lib_battle_common.dlog("[ability] cross_guard: skip - defender_card is nil in event_data")
         return {}, nil
+    end
+    if target_card.item_definition_code_name ~= "azure_blade" then
+        lib_battle_common.dlog("[ability] cross_guard: error - target is not azure_blade (got " .. tostring(target_card.item_definition_code_name) .. ")")
+        return {}, "cross_guard can only target azure_blade (got: " .. tostring(target_card.item_definition_code_name) .. ")"
     end
     local guard_bonus = 200
     local prev_def = target_card.final_def or 0

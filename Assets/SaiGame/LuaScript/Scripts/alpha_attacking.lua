@@ -104,8 +104,36 @@ end
 local function log_defender_status(defender_card)
     local total_dmg     = defender_card.total_damage_received or 0
     local final_def_val = defender_card.final_def or 0
-    local defeated_str  = total_dmg > final_def_val and "yes" or "no"
+    local defeated_str  = total_dmg >= final_def_val and "yes" or "no"
     lib_battle_common.dlog("defender.total_damage_received=" .. total_dmg .. " final_def=" .. final_def_val .. " defeated=" .. defeated_str)
+end
+
+-- Loads battle state and attacker card only (no defender card required).
+-- Returns: session_id, state, attacker_card, attacker_line_key, attacker_def, err
+local function load_attacker_context()
+    local session_id, session_err = lib_battle_common.resolve_session_id()
+    if session_err ~= nil then return nil, nil, nil, nil, nil, session_err end
+    if session_id == nil then return nil, nil, nil, nil, nil, "failed to resolve session_id" end
+
+    local state, state_err = lib_battle_common.load_session(session_id)
+    if state_err ~= nil then return nil, nil, nil, nil, nil, state_err end
+
+    local named_lines = {
+        { line = state.alpha_front_line or {}, line_key = "alpha_front_line", side_void = "alpha_the_void" },
+        { line = state.alpha_back_line  or {}, line_key = "alpha_back_line",  side_void = "alpha_the_void" },
+        { line = state.omega_front_line or {}, line_key = "omega_front_line", side_void = "omega_the_void" },
+        { line = state.omega_back_line  or {}, line_key = "omega_back_line",  side_void = "omega_the_void" },
+    }
+    local attacker_card, attacker_line_key = find_card_in_lines(named_lines, payload.attacker_inventory_item_id)
+    if attacker_card == nil then return nil, nil, nil, nil, nil, "attacker card not found in any battle line" end
+    if attacker_card.trigger == true then return nil, nil, nil, nil, nil, "attacker card has already attacked this turn" end
+
+    local atk_code = attacker_card.item_definition_code_name
+    if not atk_code or atk_code == "" then return nil, nil, nil, nil, nil, "attacker card has no item_definition_code_name" end
+    local attacker_def = find_item_def(state.item_defs, atk_code)
+    if attacker_def == nil then return nil, nil, nil, nil, nil, "item def not found in state.item_defs: " .. atk_code end
+
+    return session_id, state, attacker_card, attacker_line_key, attacker_def, nil
 end
 
 -- Loads battle state, resolves cards & defs, validates attack preconditions.
@@ -118,6 +146,7 @@ local function load_attack_context()
 
     local state, state_err = lib_battle_common.load_session(session_id)
     if state_err ~= nil then return nil, nil, nil, nil, nil, nil, nil, nil, nil, state_err end
+    if state.status == "completed" then return nil, nil, nil, nil, nil, nil, nil, nil, nil, "battle is already completed" end
 
     local attacker_card, attacker_line_key, defender_card, defender_line_key, defender_side_void = resolve_cards(state)
     if attacker_card == nil then return nil, nil, nil, nil, nil, nil, nil, nil, nil, "attacker card not found in any battle line" end
@@ -221,6 +250,31 @@ commit_attack_result = function(session_id, state, is_development)
     return nil
 end
 
+-- Applies attacker damage directly to omega_hp.
+-- Returns err or nil.
+local function attack_omega_hp(session_id, state, attacker_card, attacker_def, is_development)
+    if not lib_battle_common.check_card_type(state.item_defs, attacker_card, "character") then
+        return "attacker is not a character"
+    end
+    local damage = compute_damage(attacker_def)
+    lib_battle_common.dlog("[alpha_attacking] attacking omega_hp directly: damage=" .. damage)
+    state.omega_hp = (state.omega_hp or 0) - damage
+    lib_battle_common.dlog("[alpha_attacking] omega_hp after attack=" .. state.omega_hp)
+    attacker_card.trigger  = true
+    attacker_card.face_up  = true
+    attacker_card.expose   = true
+    lib_battle_common.append_client_action(state, "alpha_card_expose:" .. attacker_card.inventory_item_id)
+    lib_battle_common.append_client_action(state, "alpha_attack_omega_hp:" .. attacker_card.inventory_item_id .. "," .. damage .. "," .. state.omega_hp)
+    local omega_defeated = state.omega_hp <= 0
+    if omega_defeated then
+        lib_battle_common.append_client_action(state, "battle_completed:alpha")
+        state.status = "completed"
+    end
+    local commit_err = commit_attack_result(session_id, state, is_development)
+    if commit_err ~= nil then return commit_err end
+    return nil
+end
+
 -- ────────────────────────────────────────────────────────────────────────────
 -- Main
 -- ────────────────────────────────────────────────────────────────────────────
@@ -229,13 +283,31 @@ local function main()
     local payload_err = validate_payload()
     if payload_err ~= nil then output.error = payload_err ; return end
 
+    local is_development = ctx.game ~= nil and ctx.game.status == "development"
+
+    if payload.defender_inventory_item_id == "omega_hp" then
+        local session_id, state, attacker_card, attacker_line_key, attacker_def,
+              ctx_err = load_attacker_context()
+        if ctx_err ~= nil then output.error = ctx_err ; return end
+        if not state.omega_defending then
+            output.error = "omega is not in defending state"
+            return
+        end
+        local attack_err = attack_omega_hp(session_id, state, attacker_card, attacker_def, is_development)
+        if attack_err ~= nil then output.error = attack_err ; return end
+        return
+    end
+
     local session_id, state,
           attacker_card, attacker_line_key, attacker_def,
           defender_card, defender_line_key, defender_side_void, defender_def,
           ctx_err = load_attack_context()
     if ctx_err ~= nil then output.error = ctx_err ; return end
 
-    local is_development = ctx.game ~= nil and ctx.game.status == "development"
+    if not state.omega_defending then
+        output.error = "omega is not in defending state"
+        return
+    end
 
     local attack_err = apply_attack(
         session_id, state,

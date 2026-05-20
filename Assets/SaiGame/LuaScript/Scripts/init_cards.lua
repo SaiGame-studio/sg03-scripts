@@ -1,4 +1,6 @@
 require "lib_battle_common"
+require "lib_battle_ai"
+require "lib_battle_entity_ai"
 
 -- init_cards
 -- Draws opening hands for both alpha and omega.
@@ -238,6 +240,12 @@ local function omega_init_cards(state)
     return nil
 end
 
+-- ─── Omega deploy dispatch ──────────────────────────────────────────────────
+
+local function run_omega_deploy(state)
+    return lib_battle_entity_ai.deploy_enemy(state)
+end
+
 local function main()
     local session_id, sid_err = lib_battle_common.resolve_session_id()
     if sid_err ~= nil then
@@ -260,18 +268,25 @@ local function main()
         output.error = omega_err; return
     end
 
+    local deploy_err = run_omega_deploy(state)
+    if deploy_err ~= nil then
+        output.error = deploy_err; return
+    end
+
     lib_battle_common.append_client_action(state, "alpha_take_lamp")
 
     state.action     = (state.action or 0) + 1
     state.updated_at = ctx.timestamp
     if state.metadata == nil then state.metadata = {} end
-    state.metadata.next_move = "card_deploy"
+    state.metadata.next_move = "alpha_turn"
+    state.omega_defending = true
+    lib_battle_common.append_client_action(state, "omega_defending")
 
     local save_err = game.battle_session_update(session_id, state)
     if save_err ~= nil then
         output.error = save_err; return
     end
-    lib_battle_common.dlog("[init_cards] session persisted, next_move = card_deploy")
+    lib_battle_common.dlog("[init_cards] session persisted, next_move = alpha_turn, omega_defending = true")
 
     lib_battle_common.battle_status()
 end
