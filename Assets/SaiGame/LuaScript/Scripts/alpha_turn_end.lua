@@ -83,6 +83,7 @@ local function main()
     if state_err ~= nil then
         output.error = state_err; return
     end
+    if state.status == "completed" then output.error = "battle is already completed" ; return end
     lib_battle_common.dlog("[alpha_turn_end] session loaded: " .. session_id)
 
     lib_battle_common.reset_turn_cards(state)

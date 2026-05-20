@@ -112,7 +112,7 @@ function deal_damage_to_character(state, attacker_card, target_card, damage, tar
 
     local prev_damage = target_card.total_damage_received or 0
     target_card.total_damage_received = prev_damage + damage
-    local defeated = target_card.total_damage_received > final_def
+    local defeated = target_card.total_damage_received >= final_def
     lib_battle_common.dlog("[ability] deal_damage: final_def=" .. final_def .. " prev_damage=" .. prev_damage .. " new_total=" .. target_card.total_damage_received .. " defeated=" .. (defeated and "yes" or "no"))
 
     local target_side   = void_key == "alpha_the_void" and "alpha" or "omega"

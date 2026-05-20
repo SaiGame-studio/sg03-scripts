@@ -104,7 +104,7 @@ end
 local function log_defender_status(defender_card)
     local total_dmg     = defender_card.total_damage_received or 0
     local final_def_val = defender_card.final_def or 0
-    local defeated_str  = total_dmg > final_def_val and "yes" or "no"
+    local defeated_str  = total_dmg >= final_def_val and "yes" or "no"
     lib_battle_common.dlog("defender.total_damage_received=" .. total_dmg .. " final_def=" .. final_def_val .. " defeated=" .. defeated_str)
 end
 
@@ -146,6 +146,7 @@ local function load_attack_context()
 
     local state, state_err = lib_battle_common.load_session(session_id)
     if state_err ~= nil then return nil, nil, nil, nil, nil, nil, nil, nil, nil, state_err end
+    if state.status == "completed" then return nil, nil, nil, nil, nil, nil, nil, nil, nil, "battle is already completed" end
 
     local attacker_card, attacker_line_key, defender_card, defender_line_key, defender_side_void = resolve_cards(state)
     if attacker_card == nil then return nil, nil, nil, nil, nil, nil, nil, nil, nil, "attacker card not found in any battle line" end
