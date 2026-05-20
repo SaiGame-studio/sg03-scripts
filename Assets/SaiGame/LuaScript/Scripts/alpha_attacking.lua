@@ -259,8 +259,16 @@ local function attack_omega_hp(session_id, state, attacker_card, attacker_def, i
     lib_battle_common.dlog("[alpha_attacking] attacking omega_hp directly: damage=" .. damage)
     state.omega_hp = (state.omega_hp or 0) - damage
     lib_battle_common.dlog("[alpha_attacking] omega_hp after attack=" .. state.omega_hp)
-    attacker_card.trigger = true
+    attacker_card.trigger  = true
+    attacker_card.face_up  = true
+    attacker_card.expose   = true
+    lib_battle_common.append_client_action(state, "alpha_card_expose:" .. attacker_card.inventory_item_id)
     lib_battle_common.append_client_action(state, "alpha_attack_omega_hp:" .. attacker_card.inventory_item_id .. "," .. damage .. "," .. state.omega_hp)
+    local omega_defeated = state.omega_hp <= 0
+    if omega_defeated then
+        lib_battle_common.append_client_action(state, "battle_completed:alpha")
+        state.status = "completed"
+    end
     local commit_err = commit_attack_result(session_id, state, is_development)
     if commit_err ~= nil then return commit_err end
     return nil

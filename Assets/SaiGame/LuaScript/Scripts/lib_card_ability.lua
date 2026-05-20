@@ -249,12 +249,17 @@ local function _handle_spinning_slash(state, attacker_card, event_data)
 end
 
 -- cross_guard: when played as attacker (ability-type), increases the target card's final_def by 200.
+-- Only valid when the target is an azure_blade character.
 local function _handle_cross_guard(state, source_card, event_data)
     lib_battle_common.dlog("== [ability] cross_guard ====================")
     local target_card = (event_data or {}).defender_card
     if target_card == nil then
         lib_battle_common.dlog("[ability] cross_guard: skip - defender_card is nil in event_data")
         return {}, nil
+    end
+    if target_card.item_definition_code_name ~= "azure_blade" then
+        lib_battle_common.dlog("[ability] cross_guard: error - target is not azure_blade (got " .. tostring(target_card.item_definition_code_name) .. ")")
+        return {}, "cross_guard can only target azure_blade (got: " .. tostring(target_card.item_definition_code_name) .. ")"
     end
     local guard_bonus = 200
     local prev_def = target_card.final_def or 0
