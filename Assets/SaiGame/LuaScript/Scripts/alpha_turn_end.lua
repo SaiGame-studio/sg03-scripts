@@ -59,8 +59,9 @@ enemy_attack_planning_dispatch = {
 local function advance_turn_to_omega(state)
     if state.metadata == nil then state.metadata = {} end
     state.metadata.next_move = "omega_turn"
+    state.omega_defending = false
     state.turn = (state.turn or 0) + 1
-    lib_battle_common.dlog("[alpha_turn_end] turn advanced to " .. tostring(state.turn) .. ", next_move = omega_turn")
+    lib_battle_common.dlog("[alpha_turn_end] turn advanced to " .. tostring(state.turn) .. ", next_move = omega_turn, omega_defending=false")
     lib_battle_common.append_client_action(state, "alpha_take_lamp")
     lib_battle_common.append_client_action(state, "alpha_turn_end:" .. tostring(state.turn))
 end

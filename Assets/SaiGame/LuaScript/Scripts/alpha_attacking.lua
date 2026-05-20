@@ -252,6 +252,9 @@ end
 -- Applies attacker damage directly to omega_hp.
 -- Returns err or nil.
 local function attack_omega_hp(session_id, state, attacker_card, attacker_def, is_development)
+    if not lib_battle_common.check_card_type(state.item_defs, attacker_card, "character") then
+        return "attacker is not a character"
+    end
     local damage = compute_damage(attacker_def)
     lib_battle_common.dlog("[alpha_attacking] attacking omega_hp directly: damage=" .. damage)
     state.omega_hp = (state.omega_hp or 0) - damage
