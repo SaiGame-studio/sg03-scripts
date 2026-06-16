@@ -127,7 +127,7 @@ end
 build_state = function(enemy, selected_mode, player_the_source, enemy_the_source, preset)
     local hp_map = { fast = 4000, normal = 7000, long = 16000 }
     local hp = hp_map[selected_mode]
-    hp = 1000
+    hp = 1000 --debug only
     return {
         metadata = {
             alpha_id           = ctx.player_id,
