@@ -460,7 +460,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 3731728121393147189, guid: 3cd71439f244afb48a8cc771f5246221, type: 3}
       propertyPath: scriptFiles.Array.data[0].fileName
-      value: alpha_attacking.lua
+      value: alpha_card_active.lua
       objectReference: {fileID: 0}
     - target: {fileID: 3731728121393147189, guid: 3cd71439f244afb48a8cc771f5246221, type: 3}
       propertyPath: scriptFiles.Array.data[0].isActive
@@ -572,7 +572,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 3731728121393147189, guid: 3cd71439f244afb48a8cc771f5246221, type: 3}
       propertyPath: scriptFiles.Array.data[0].scriptName
-      value: alpha_attacking
+      value: alpha_card_active
       objectReference: {fileID: 0}
     - target: {fileID: 3731728121393147189, guid: 3cd71439f244afb48a8cc771f5246221, type: 3}
       propertyPath: scriptFiles.Array.data[1].scriptName
