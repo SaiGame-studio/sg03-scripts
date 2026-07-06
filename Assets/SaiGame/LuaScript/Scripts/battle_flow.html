@@ -167,7 +167,7 @@
       <div class="arrow"><div class="arrow-line"></div><div class="arrow-head"></div></div>
 
       <div class="node node-alpha" style="min-width:400px;text-align:left;">
-        <div style="text-align:center;font-weight:700;margin-bottom:8px;">alpha_attacking &nbsp;<span style="font-size:0.7rem;color:#60a5fa">× N</span></div>
+        <div style="text-align:center;font-weight:700;margin-bottom:8px;">alpha_card_active &nbsp;<span style="font-size:0.7rem;color:#60a5fa">× N</span></div>
         <div class="sub">
           • yêu cầu omega_defending = true<br><br>
           ├ <strong style="color:#bfdbfe">defender = "omega_hp"</strong><br>
@@ -289,7 +289,7 @@
           <strong>card_deploy.lua</strong> — file bị mất, chỉ còn <code>.meta</code>. Script này từng tồn tại nhưng đã bị xóa hoặc chưa được tạo lại.
         </div>
         <div class="warn-item node-warn">
-          <strong>omega_defending</strong> — được check trong <code>alpha_attacking</code> nhưng chưa có script nào set nó thành <code>true</code>. Cần tạo cơ chế để bật omega_defending trước khi alpha có thể tấn công.
+          <strong>omega_defending</strong> — được check trong <code>alpha_card_active</code> nhưng chưa có script nào set nó thành <code>true</code>. Cần tạo cơ chế để bật omega_defending trước khi alpha có thể dùng card action.
         </div>
       </div>
     </div>
