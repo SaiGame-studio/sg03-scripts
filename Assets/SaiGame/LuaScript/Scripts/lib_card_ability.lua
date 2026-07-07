@@ -86,11 +86,38 @@ local function _find_item_def(item_defs, code)
     return nil
 end
 
+local function _line_has_card_code(line, code_name)
+    for _, line_card in ipairs(line or {}) do
+        if line_card.item_definition_code_name == code_name then
+            return true
+        end
+    end
+    return false
+end
+
+local function _find_line_card_by_code(line, code_name)
+    for _, line_card in ipairs(line or {}) do
+        if line_card.item_definition_code_name == code_name then
+            return line_card
+        end
+    end
+    return nil
+end
+
+local function _find_line_card_by_code(line, code_name)
+    for _, line_card in ipairs(line or {}) do
+        if line_card.item_definition_code_name == code_name then
+            return line_card
+        end
+    end
+    return nil
+end
+
 -- ─── Built-in ability handlers ────────────────────────────────────────────────
 -- Each handler is only called when the right trigger_event already matches.
 -- No need to guard the event type inside the handler.
 
--- Applies damage to target_card, removes it from target_line if defeated, and
+-- Applies damage to target_card, clears its slot from target_line if defeated, and
 -- returns the resulting client actions ("card_ability_defeated" or "card_ability_damaged").
 -- target_line and void_key may be nil if line removal is not needed.
 function deal_damage_to_character(state, attacker_card, target_card, damage, target_line, void_key)
@@ -119,12 +146,7 @@ function deal_damage_to_character(state, attacker_card, target_card, damage, tar
     local damage_actions = {}
     if defeated then
         if target_line ~= nil then
-            for i, slot_card in ipairs(target_line) do
-                if slot_card.inventory_item_id == target_card.inventory_item_id then
-                    table.remove(target_line, i)
-                    break
-                end
-            end
+            lib_battle_common.remove_card_from_line(target_line, target_card.inventory_item_id)
         end
         if void_key ~= nil then
             if state[void_key] == nil then state[void_key] = {} end
@@ -211,24 +233,19 @@ local function _handle_spinning_slash(state, attacker_card, event_data)
     local line_key  = (event_data or {}).defender_line_key
     local void_key  = (event_data or {}).defender_side_void
 
-    -- Determine attacker's front-line.
     local attacker_side = _find_card_side(state, attacker_card)
     local front_line_key = attacker_side .. "_front_line"
     local front_line = state[front_line_key] or {}
-    lib_battle_common.dlog("[ability] spinning_slash: attacker=" .. attacker_card.inventory_item_id .. " side=" .. attacker_side .. " searching " .. front_line_key)
+    lib_battle_common.dlog("[ability] spinning_slash: attacker=" .. attacker_card.inventory_item_id .. " side=" .. attacker_side .. " selecting from " .. front_line_key)
 
-    -- Find the first azure_blade card in that front-line.
-    local azure_blade_card = nil
-    for _, slot_card in ipairs(front_line) do
-        if slot_card.item_definition_code_name == "azure_blade"
-           and not lib_battle_common.is_card_stunned(slot_card) then
-            azure_blade_card = slot_card
-            break
-        end
-    end
+    local azure_blade_card = _find_line_card_by_code(front_line, "azure_blade")
     if azure_blade_card == nil then
-        lib_battle_common.dlog("[ability] spinning_slash: no active azure_blade in " .. front_line_key .. ", skip")
-        return {}, nil
+        lib_battle_common.dlog("[ability] spinning_slash: error - no azure_blade in " .. front_line_key)
+        return {}, "spinning_slash requires azure_blade in front_line"
+    end
+    if defender.inventory_item_id == azure_blade_card.inventory_item_id then
+        lib_battle_common.dlog("[ability] spinning_slash: error - defender matches selected azure_blade id=" .. tostring(azure_blade_card.inventory_item_id))
+        return {}, "spinning_slash cannot target the selected azure_blade"
     end
 
     local attacker_item_def   = _find_item_def(state.item_defs, attacker_card.item_definition_code_name)
@@ -239,7 +256,12 @@ local function _handle_spinning_slash(state, attacker_card, event_data)
     lib_battle_common.dlog("[ability] spinning_slash: azure_blade=" .. azure_blade_card.inventory_item_id .. " atk_add=" .. atk_add .. " blade_atk=" .. blade_atk .. " total_damage=" .. damage)
 
     local defender_line = line_key ~= nil and state[line_key] or nil
-    local ability_actions = { attacker_side .. "_card_ability:" .. attacker_card.inventory_item_id .. ",spinning_slash," .. defender.inventory_item_id }
+    azure_blade_card.face_up = true
+    azure_blade_card.expose  = true
+    local ability_actions = {
+        attacker_side .. "_card_expose:" .. azure_blade_card.inventory_item_id,
+        attacker_side .. "_card_ability:" .. attacker_card.inventory_item_id .. ",spinning_slash," .. defender.inventory_item_id
+    }
     local damage_actions, dmg_err = deal_damage_to_character(state, azure_blade_card, defender, damage, defender_line, void_key)
     if dmg_err ~= nil then return ability_actions, dmg_err end
     for _, action in ipairs(damage_actions) do
@@ -249,24 +271,39 @@ local function _handle_spinning_slash(state, attacker_card, event_data)
 end
 
 -- cross_guard: when played as attacker (ability-type), increases the target card's final_def by 200.
--- Only valid when the target is an azure_blade character.
+-- Requires an azure_blade card in the attacker's front line and only targets cards on a front line.
 local function _handle_cross_guard(state, source_card, event_data)
     lib_battle_common.dlog("== [ability] cross_guard ====================")
     local target_card = (event_data or {}).defender_card
+    local target_line_key = (event_data or {}).defender_line_key
     if target_card == nil then
         lib_battle_common.dlog("[ability] cross_guard: skip - defender_card is nil in event_data")
         return {}, nil
     end
-    if target_card.item_definition_code_name ~= "azure_blade" then
-        lib_battle_common.dlog("[ability] cross_guard: error - target is not azure_blade (got " .. tostring(target_card.item_definition_code_name) .. ")")
-        return {}, "cross_guard can only target azure_blade (got: " .. tostring(target_card.item_definition_code_name) .. ")"
+
+    if target_line_key == nil or not string.find(target_line_key, "_front_line", 1, true) then
+        lib_battle_common.dlog("[ability] cross_guard: error - target is not on front_line (line=" .. tostring(target_line_key) .. ")")
+        return {}, "cross_guard can only target cards on front_line"
     end
+
+    local source_side = _find_card_side(state, source_card)
+    local source_front_line_key = source_side .. "_front_line"
+    local azure_blade_card = _find_line_card_by_code(state[source_front_line_key], "azure_blade")
+    if azure_blade_card == nil then
+        lib_battle_common.dlog("[ability] cross_guard: error - no azure_blade in " .. source_front_line_key)
+        return {}, "cross_guard requires azure_blade in front_line"
+    end
+
     local guard_bonus = 200
     local prev_def = target_card.final_def or 0
     target_card.final_def = prev_def + guard_bonus
+    azure_blade_card.face_up = true
+    azure_blade_card.expose  = true
     lib_battle_common.dlog("[ability] cross_guard: target=" .. target_card.inventory_item_id .. " final_def " .. prev_def .. " -> " .. target_card.final_def)
-    local source_side   = _find_card_side(state, source_card)
-    local guard_actions = { source_side .. "_card_ability:" .. source_card.inventory_item_id .. ",cross_guard," .. target_card.inventory_item_id }
+    local guard_actions = {
+        source_side .. "_card_expose:" .. azure_blade_card.inventory_item_id,
+        source_side .. "_card_ability:" .. source_card.inventory_item_id .. ",cross_guard," .. target_card.inventory_item_id
+    }
     return guard_actions, nil
 end
 
@@ -312,12 +349,7 @@ local function _handle_totem_pulse(state, source_card, event_data)
     -- Send the totem card itself to the void after use.
     local back_line_key  = source_side .. "_back_line"
     local back_line      = state[back_line_key] or {}
-    for i, back_card in ipairs(back_line) do
-        if back_card.inventory_item_id == source_card.inventory_item_id then
-            table.remove(back_line, i)
-            break
-        end
-    end
+    lib_battle_common.remove_card_from_line(back_line, source_card.inventory_item_id)
     local void_key = source_side .. "_the_void"
     if state[void_key] == nil then state[void_key] = {} end
     table.insert(state[void_key], source_card)
