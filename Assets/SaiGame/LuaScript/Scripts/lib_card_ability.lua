@@ -104,6 +104,15 @@ local function _find_line_card_by_code(line, code_name)
     return nil
 end
 
+local function _find_line_card_by_code(line, code_name)
+    for _, line_card in ipairs(line or {}) do
+        if line_card.item_definition_code_name == code_name then
+            return line_card
+        end
+    end
+    return nil
+end
+
 -- ─── Built-in ability handlers ────────────────────────────────────────────────
 -- Each handler is only called when the right trigger_event already matches.
 -- No need to guard the event type inside the handler.
@@ -224,24 +233,19 @@ local function _handle_spinning_slash(state, attacker_card, event_data)
     local line_key  = (event_data or {}).defender_line_key
     local void_key  = (event_data or {}).defender_side_void
 
-    -- Determine attacker's front-line.
     local attacker_side = _find_card_side(state, attacker_card)
     local front_line_key = attacker_side .. "_front_line"
     local front_line = state[front_line_key] or {}
-    lib_battle_common.dlog("[ability] spinning_slash: attacker=" .. attacker_card.inventory_item_id .. " side=" .. attacker_side .. " searching " .. front_line_key)
+    lib_battle_common.dlog("[ability] spinning_slash: attacker=" .. attacker_card.inventory_item_id .. " side=" .. attacker_side .. " selecting from " .. front_line_key)
 
-    -- Find the first azure_blade card in that front-line.
-    local azure_blade_card = nil
-    for _, slot_card in ipairs(front_line) do
-        if slot_card.item_definition_code_name == "azure_blade"
-           and not lib_battle_common.is_card_stunned(slot_card) then
-            azure_blade_card = slot_card
-            break
-        end
-    end
+    local azure_blade_card = _find_line_card_by_code(front_line, "azure_blade")
     if azure_blade_card == nil then
-        lib_battle_common.dlog("[ability] spinning_slash: no active azure_blade in " .. front_line_key .. ", skip")
-        return {}, nil
+        lib_battle_common.dlog("[ability] spinning_slash: error - no azure_blade in " .. front_line_key)
+        return {}, "spinning_slash requires azure_blade in front_line"
+    end
+    if defender.inventory_item_id == azure_blade_card.inventory_item_id then
+        lib_battle_common.dlog("[ability] spinning_slash: error - defender matches selected azure_blade id=" .. tostring(azure_blade_card.inventory_item_id))
+        return {}, "spinning_slash cannot target the selected azure_blade"
     end
 
     local attacker_item_def   = _find_item_def(state.item_defs, attacker_card.item_definition_code_name)
@@ -252,7 +256,12 @@ local function _handle_spinning_slash(state, attacker_card, event_data)
     lib_battle_common.dlog("[ability] spinning_slash: azure_blade=" .. azure_blade_card.inventory_item_id .. " atk_add=" .. atk_add .. " blade_atk=" .. blade_atk .. " total_damage=" .. damage)
 
     local defender_line = line_key ~= nil and state[line_key] or nil
-    local ability_actions = { attacker_side .. "_card_ability:" .. attacker_card.inventory_item_id .. ",spinning_slash," .. defender.inventory_item_id }
+    azure_blade_card.face_up = true
+    azure_blade_card.expose  = true
+    local ability_actions = {
+        attacker_side .. "_card_expose:" .. azure_blade_card.inventory_item_id,
+        attacker_side .. "_card_ability:" .. attacker_card.inventory_item_id .. ",spinning_slash," .. defender.inventory_item_id
+    }
     local damage_actions, dmg_err = deal_damage_to_character(state, azure_blade_card, defender, damage, defender_line, void_key)
     if dmg_err ~= nil then return ability_actions, dmg_err end
     for _, action in ipairs(damage_actions) do
