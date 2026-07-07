@@ -294,10 +294,6 @@ local function main()
         local session_id, state, attacker_card, attacker_line_key, attacker_def,
               ctx_err = load_attacker_context()
         if ctx_err ~= nil then output.error = ctx_err ; return end
-        if not state.omega_defending then
-            output.error = "omega is not in defending state"
-            return
-        end
         local attack_err = attack_omega_hp(session_id, state, attacker_card, attacker_def, is_development)
         if attack_err ~= nil then output.error = attack_err ; return end
         return
@@ -308,11 +304,6 @@ local function main()
           defender_card, defender_line_key, defender_side_void, defender_def,
           ctx_err = load_attack_context()
     if ctx_err ~= nil then output.error = ctx_err ; return end
-
-    if not state.omega_defending then
-        output.error = "omega is not in defending state"
-        return
-    end
 
     local attack_err = apply_attack(
         session_id, state,
