@@ -90,7 +90,7 @@ end
 -- Each handler is only called when the right trigger_event already matches.
 -- No need to guard the event type inside the handler.
 
--- Applies damage to target_card, removes it from target_line if defeated, and
+-- Applies damage to target_card, clears its slot from target_line if defeated, and
 -- returns the resulting client actions ("card_ability_defeated" or "card_ability_damaged").
 -- target_line and void_key may be nil if line removal is not needed.
 function deal_damage_to_character(state, attacker_card, target_card, damage, target_line, void_key)
@@ -119,12 +119,7 @@ function deal_damage_to_character(state, attacker_card, target_card, damage, tar
     local damage_actions = {}
     if defeated then
         if target_line ~= nil then
-            for i, slot_card in ipairs(target_line) do
-                if slot_card.inventory_item_id == target_card.inventory_item_id then
-                    table.remove(target_line, i)
-                    break
-                end
-            end
+            lib_battle_common.remove_card_from_line(target_line, target_card.inventory_item_id)
         end
         if void_key ~= nil then
             if state[void_key] == nil then state[void_key] = {} end
@@ -312,12 +307,7 @@ local function _handle_totem_pulse(state, source_card, event_data)
     -- Send the totem card itself to the void after use.
     local back_line_key  = source_side .. "_back_line"
     local back_line      = state[back_line_key] or {}
-    for i, back_card in ipairs(back_line) do
-        if back_card.inventory_item_id == source_card.inventory_item_id then
-            table.remove(back_line, i)
-            break
-        end
-    end
+    lib_battle_common.remove_card_from_line(back_line, source_card.inventory_item_id)
     local void_key = source_side .. "_the_void"
     if state[void_key] == nil then state[void_key] = {} end
     table.insert(state[void_key], source_card)

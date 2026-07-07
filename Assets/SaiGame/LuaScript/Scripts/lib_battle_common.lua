@@ -20,14 +20,15 @@ function check_card_type(item_defs, card, card_type)
     return false
 end
 
--- Removes the first card with matching inventory_item_id from a line array.
--- Returns true if a card was removed, false otherwise.
+-- Clears the first slot with matching inventory_item_id from a fixed-size line.
+-- Preserves the line length by replacing the slot with {} instead of removing it.
+-- Returns true if a card was cleared, false otherwise.
 function remove_card_from_line(line, inventory_item_id)
     dlog("== remove_card_from_line ==")
     if line == nil then return false end
     for i, card in ipairs(line) do
         if card.inventory_item_id == inventory_item_id then
-            table.remove(line, i)
+            line[i] = {}
             return true
         end
     end
