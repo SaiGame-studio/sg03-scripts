@@ -279,6 +279,7 @@ local function main()
     state.updated_at = ctx.timestamp
     if state.metadata == nil then state.metadata = {} end
     state.metadata.next_move = "alpha_turn"
+    lib_battle_common.append_client_action(state, "next_move:alpha_turn")
     state.omega_defending = true
     lib_battle_common.append_client_action(state, "omega_defending")
 

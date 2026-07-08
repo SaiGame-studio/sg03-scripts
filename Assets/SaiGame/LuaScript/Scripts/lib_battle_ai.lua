@@ -310,6 +310,7 @@ function omega_end_turn(state)
     lib_battle_common.append_client_action(state, "omega_turn_end:" .. tostring(state.turn))
     alpha_draw_random(state)
     state.metadata.next_move = "alpha_turn"
+    lib_battle_common.append_client_action(state, "next_move:alpha_turn")
     state.omega_defending = true
     lib_battle_common.append_client_action(state, "omega_defending")
     lib_battle_common.dlog("[lib_battle_ai] omega_end_turn: next_move=alpha_turn, omega_defending=true")
