@@ -1,9 +1,9 @@
 require "lib_battle_common"
 require "lib_card_ability"
 require "lib_battle_entity_ai"
+require "enemy_ai_goblin_shaman"
 
 local run_enemy_defend        -- forward declaration
-local enemy_defend_dispatch   -- table: enemy_entity_key -> defending function
 local apply_attack            -- forward declaration
 local commit_attack_result    -- forward declaration
 
@@ -147,24 +147,13 @@ local function resolve_attack_context(state)
            defender_card, defender_line_key, defender_side_void, defender_def, nil
 end
 
--- Enemy-specific defending reactions
-
-enemy_defend_dispatch = {
-    goblin_shaman = lib_battle_entity_ai.goblin_shaman_defend,
-}
-
 -- Dispatches to the enemy-specific defending function after alpha's card action is planned.
 -- Returns err or nil.
 run_enemy_defend = function(session_id, state)
     lib_battle_common.dlog("[alpha_card_active] == phase 2: omega defending ==")
     local enemy_key = state.metadata ~= nil and state.metadata.enemy_entity_key or nil
     lib_battle_common.dlog("[alpha_card_active] enemy_entity_key=" .. tostring(enemy_key))
-    local defend_fn = enemy_key ~= nil and enemy_defend_dispatch[enemy_key] or nil
-    if defend_fn == nil then
-        lib_battle_common.dlog("[alpha_card_active] no defend function for enemy_key=" .. tostring(enemy_key) .. ", skipping")
-        return nil
-    end
-    return defend_fn(state)
+    return lib_battle_entity_ai.run_defend(state)
 end
 
 -- Phase 1: compute planned damage and store in state.pending_attack.

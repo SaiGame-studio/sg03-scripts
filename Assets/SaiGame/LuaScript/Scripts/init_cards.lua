@@ -1,6 +1,7 @@
 require "lib_battle_common"
 require "lib_battle_ai"
 require "lib_battle_entity_ai"
+require "enemy_ai_goblin_shaman"
 
 -- init_cards
 -- Draws opening hands for both alpha and omega.
