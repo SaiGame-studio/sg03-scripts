@@ -1,9 +1,9 @@
 require "lib_battle_common"
 require "lib_card_ability"
 require "lib_battle_entity_ai"
+require "enemy_ai_goblin_shaman"
 
 local run_enemy_defend        -- forward declaration
-local enemy_defend_dispatch   -- table: enemy_entity_key -> defending function
 local apply_attack            -- forward declaration
 local commit_attack_result    -- forward declaration
 
@@ -110,16 +110,9 @@ local function log_defender_status(defender_card)
     lib_battle_common.dlog("defender.total_damage_received=" .. total_dmg .. " final_def=" .. final_def_val .. " defeated=" .. defeated_str)
 end
 
--- Loads battle state and attacker card only (no defender card required).
--- Returns: session_id, state, attacker_card, attacker_line_key, attacker_def, err
-local function load_attacker_context()
-    local session_id, session_err = lib_battle_common.resolve_session_id()
-    if session_err ~= nil then return nil, nil, nil, nil, nil, session_err end
-    if session_id == nil then return nil, nil, nil, nil, nil, "failed to resolve session_id" end
-
-    local state, state_err = lib_battle_common.load_session(session_id)
-    if state_err ~= nil then return nil, nil, nil, nil, nil, state_err end
-
+-- Resolves attacker card only (no defender card required).
+-- Returns: attacker_card, attacker_line_key, attacker_def, err
+local function resolve_attacker_context(state)
     local named_lines = {
         { line = state.alpha_front_line or {}, line_key = "alpha_front_line", side_void = "alpha_the_void" },
         { line = state.alpha_back_line  or {}, line_key = "alpha_back_line",  side_void = "alpha_the_void" },
@@ -127,46 +120,32 @@ local function load_attacker_context()
         { line = state.omega_back_line  or {}, line_key = "omega_back_line",  side_void = "omega_the_void" },
     }
     local attacker_card, attacker_line_key = find_card_in_lines(named_lines, payload.attacker_inventory_item_id)
-    if attacker_card == nil then return nil, nil, nil, nil, nil, "attacker card not found in any battle line" end
-    if attacker_card.trigger == true then return nil, nil, nil, nil, nil, "attacker card has already attacked this turn" end
+    if attacker_card == nil then return nil, nil, nil, "attacker card not found in any battle line" end
+    if attacker_card.trigger == true then return nil, nil, nil, "attacker card has already attacked this turn" end
 
     local atk_code = attacker_card.item_definition_code_name
-    if not atk_code or atk_code == "" then return nil, nil, nil, nil, nil, "attacker card has no item_definition_code_name" end
+    if not atk_code or atk_code == "" then return nil, nil, nil, "attacker card has no item_definition_code_name" end
     local attacker_def = find_item_def(state.item_defs, atk_code)
-    if attacker_def == nil then return nil, nil, nil, nil, nil, "item def not found in state.item_defs: " .. atk_code end
+    if attacker_def == nil then return nil, nil, nil, "item def not found in state.item_defs: " .. atk_code end
 
-    return session_id, state, attacker_card, attacker_line_key, attacker_def, nil
+    return attacker_card, attacker_line_key, attacker_def, nil
 end
 
--- Loads battle state, resolves cards & defs, validates action preconditions.
--- Returns: session_id, state, attacker_card, attacker_line_key, attacker_def,
+-- Resolves cards & defs, validates action preconditions.
+-- Returns: attacker_card, attacker_line_key, attacker_def,
 --          defender_card, defender_line_key, defender_side_void, defender_def, err
-local function load_attack_context()
-    local session_id, session_err = lib_battle_common.resolve_session_id()
-    if session_err ~= nil then return nil, nil, nil, nil, nil, nil, nil, nil, nil, session_err end
-    if session_id == nil then return nil, nil, nil, nil, nil, nil, nil, nil, nil, "failed to resolve session_id" end
-
-    local state, state_err = lib_battle_common.load_session(session_id)
-    if state_err ~= nil then return nil, nil, nil, nil, nil, nil, nil, nil, nil, state_err end
-    if state.status == "completed" then return nil, nil, nil, nil, nil, nil, nil, nil, nil, "battle is already completed" end
-
+local function resolve_attack_context(state)
     local attacker_card, attacker_line_key, defender_card, defender_line_key, defender_side_void = resolve_cards(state)
-    if attacker_card == nil then return nil, nil, nil, nil, nil, nil, nil, nil, nil, "attacker card not found in any battle line" end
-    if attacker_card.trigger == true then return nil, nil, nil, nil, nil, nil, nil, nil, nil, "attacker card has already attacked this turn" end
-    if defender_card == nil then return nil, nil, nil, nil, nil, nil, nil, nil, nil, "defender card not found in any battle line" end
+    if attacker_card == nil then return nil, nil, nil, nil, nil, nil, nil, "attacker card not found in any battle line" end
+    if attacker_card.trigger == true then return nil, nil, nil, nil, nil, nil, nil, "attacker card has already attacked this turn" end
+    if defender_card == nil then return nil, nil, nil, nil, nil, nil, nil, "defender card not found in any battle line" end
 
     local attacker_def, defender_def, def_err = resolve_item_defs(state, attacker_card, defender_card)
-    if def_err ~= nil then return nil, nil, nil, nil, nil, nil, nil, nil, nil, def_err end
+    if def_err ~= nil then return nil, nil, nil, nil, nil, nil, nil, def_err end
 
-    return session_id, state, attacker_card, attacker_line_key, attacker_def,
+    return attacker_card, attacker_line_key, attacker_def,
            defender_card, defender_line_key, defender_side_void, defender_def, nil
 end
-
--- Enemy-specific defending reactions
-
-enemy_defend_dispatch = {
-    goblin_shaman = lib_battle_entity_ai.goblin_shaman_defend,
-}
 
 -- Dispatches to the enemy-specific defending function after alpha's card action is planned.
 -- Returns err or nil.
@@ -174,12 +153,7 @@ run_enemy_defend = function(session_id, state)
     lib_battle_common.dlog("[alpha_card_active] == phase 2: omega defending ==")
     local enemy_key = state.metadata ~= nil and state.metadata.enemy_entity_key or nil
     lib_battle_common.dlog("[alpha_card_active] enemy_entity_key=" .. tostring(enemy_key))
-    local defend_fn = enemy_key ~= nil and enemy_defend_dispatch[enemy_key] or nil
-    if defend_fn == nil then
-        lib_battle_common.dlog("[alpha_card_active] no defend function for enemy_key=" .. tostring(enemy_key) .. ", skipping")
-        return nil
-    end
-    return defend_fn(state)
+    return lib_battle_entity_ai.run_defend(state)
 end
 
 -- Phase 1: compute planned damage and store in state.pending_attack.
@@ -290,19 +264,25 @@ local function main()
 
     local is_development = ctx.game ~= nil and ctx.game.status == "development"
 
+    local session_id, session_err = lib_battle_common.resolve_session_id()
+    if session_err ~= nil then output.error = session_err ; return end
+    if session_id == nil then output.error = "failed to resolve session_id" ; return end
+
+    local state, state_err = lib_battle_common.load_session(session_id)
+    if state_err ~= nil then output.error = state_err ; return end
+    if state.status == "completed" then output.error = "battle is already completed" ; return end
+
     if payload.defender_inventory_item_id == "omega_hp" then
-        local session_id, state, attacker_card, attacker_line_key, attacker_def,
-              ctx_err = load_attacker_context()
+        local attacker_card, attacker_line_key, attacker_def, ctx_err = resolve_attacker_context(state)
         if ctx_err ~= nil then output.error = ctx_err ; return end
         local attack_err = attack_omega_hp(session_id, state, attacker_card, attacker_def, is_development)
         if attack_err ~= nil then output.error = attack_err ; return end
         return
     end
 
-    local session_id, state,
-          attacker_card, attacker_line_key, attacker_def,
+    local attacker_card, attacker_line_key, attacker_def,
           defender_card, defender_line_key, defender_side_void, defender_def,
-          ctx_err = load_attack_context()
+          ctx_err = resolve_attack_context(state)
     if ctx_err ~= nil then output.error = ctx_err ; return end
 
     local attack_err = apply_attack(
