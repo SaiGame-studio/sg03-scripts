@@ -186,7 +186,12 @@ local function _validate_defender_target_position(state, source_card, ability_ke
     local defender_card = event_data ~= nil and event_data.defender_card or nil
     if defender_card == nil then return nil end
 
-    local defender_zone_key = _find_card_zone_key(state, defender_card)
+    -- on_attack abilities can fire after the primary hit has already moved the
+    -- defender to the void, so prefer the original targeted line when present.
+    local defender_zone_key = event_data ~= nil and event_data.defender_line_key or nil
+    if defender_zone_key == nil or defender_zone_key == "" then
+        defender_zone_key = _find_card_zone_key(state, defender_card)
+    end
     if defender_zone_key == nil then
         return "defender card not found in battle state for ability target validation"
     end
