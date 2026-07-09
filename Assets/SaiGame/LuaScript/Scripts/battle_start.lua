@@ -72,9 +72,9 @@ local function main()
     lib_battle_common.dlog("[battle_start] battle mode: " .. tostring(selected_mode))
 
     local state = build_state(enemy, selected_mode, player_the_source, enemy_the_source, preset)
-    lib_battle_common.append_client_action(state, "next_move:init_cards")
     lib_battle_common.append_client_action(state, "alpha_source_spawn_card:" .. #player_the_source)
     lib_battle_common.append_client_action(state, "omega_source_spawn_card:" .. #enemy_the_source)
+    lib_battle_common.append_client_action(state, "next_move:init_cards")
 
     local item_defs, defs_err = load_item_defs(player_the_source, enemy_the_source)
     if defs_err ~= nil then output.error = defs_err ; return end
