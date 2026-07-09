@@ -15,11 +15,22 @@
 --        Returns: extra_client_actions (table), err (string or nil)
 --   3. Add an elseif branch in _dispatch_one_ability's dispatch block.
 
+-- Valid target_positions:
+--   own_frontline
+--   own_backline
+--   own_hand
+--   own_void
+--   own_source
+--   enemy_frontline
+--   enemy_backline
+--   enemy_hand
+--   enemy_void
+--   enemy_source
 local _known_abilities = {
-    twin_reaper    = { event = "on_attack"  },   -- also strikes the card to the right of the target (fallback: left)
-    spinning_slash = { event = "on_attack"  },   -- requires azure_blade in front-line; deals attacker.metadata.atk_add + azure_blade.metadata.atk
-    cross_guard    = { event = "on_attack"  },   -- increases target's final_def by 200 (triggered directly as ability-type card)
-    totem_pulse    = { event = "on_defend"  },   -- adds base_stats.def_add to every card in its own side's front_line
+    twin_reaper    = { event = "on_attack", target_positions = { "enemy_frontline" } }, -- also strikes the card to the right of the target (fallback: left)
+    spinning_slash = { event = "on_attack", target_positions = { "enemy_frontline" } }, -- requires azure_blade in front-line; deals attacker.metadata.atk_add + azure_blade.metadata.atk
+    cross_guard    = { event = "on_attack", target_positions = { "own_frontline" } }, -- increases target's final_def by 200 (triggered directly as ability-type card)
+    totem_pulse    = { event = "on_defend", target_positions = { "own_frontline" } }, -- adds base_stats.def_add to every card in its own side's front_line
 }
 
 -- ─── Internal helpers ─────────────────────────────────────────────────────────
@@ -54,6 +65,14 @@ function is_ability_registered(source_card)
     return #_get_ability_keys(source_card) > 0
 end
 
+function get_ability_keys(source_card, item_defs)
+    return _get_ability_keys(source_card, item_defs)
+end
+
+function get_ability_config(ability_key)
+    return _known_abilities[ability_key]
+end
+
 -- ─── Shared internal helpers ────────────────────────────────────────────────
 
 -- Returns "alpha" or "omega" by scanning state lines for the given card.
@@ -84,6 +103,103 @@ local function _find_item_def(item_defs, code)
         if item_def.item_code == code then return item_def end
     end
     return nil
+end
+
+local function _build_named_zones(state)
+    return {
+        { zone = state.alpha_front_line or {},  zone_key = "alpha_front_line" },
+        { zone = state.alpha_back_line or {},   zone_key = "alpha_back_line" },
+        { zone = state.alpha_hand or {},        zone_key = "alpha_hand" },
+        { zone = state.alpha_the_void or {},    zone_key = "alpha_the_void" },
+        { zone = state.alpha_the_source or {},  zone_key = "alpha_the_source" },
+        { zone = state.omega_front_line or {},  zone_key = "omega_front_line" },
+        { zone = state.omega_back_line or {},   zone_key = "omega_back_line" },
+        { zone = state.omega_hand or {},        zone_key = "omega_hand" },
+        { zone = state.omega_the_void or {},    zone_key = "omega_the_void" },
+        { zone = state.omega_the_source or {},  zone_key = "omega_the_source" },
+    }
+end
+
+local function _find_card_zone_key(state, target_card)
+    if target_card == nil or target_card.inventory_item_id == nil or target_card.inventory_item_id == "" then
+        return nil
+    end
+    for _, entry in ipairs(_build_named_zones(state)) do
+        for _, zone_card in ipairs(entry.zone) do
+            if zone_card.inventory_item_id == target_card.inventory_item_id then
+                return entry.zone_key
+            end
+        end
+    end
+    return nil
+end
+
+local function _zone_position_key(source_side, zone_key)
+    if source_side == nil or source_side == "" or source_side == "unknown" then return nil end
+    if zone_key == nil or zone_key == "" then return nil end
+
+    local zone_side
+    if string.sub(zone_key, 1, 6) == "alpha_" then
+        zone_side = "alpha"
+    elseif string.sub(zone_key, 1, 6) == "omega_" then
+        zone_side = "omega"
+    else
+        return nil
+    end
+
+    local relation = zone_side == source_side and "own_" or "enemy_"
+    local zone_name = string.sub(zone_key, 7)
+    if zone_name == "front_line" then return relation .. "frontline" end
+    if zone_name == "back_line" then return relation .. "backline" end
+    if zone_name == "hand" then return relation .. "hand" end
+    if zone_name == "the_void" then return relation .. "void" end
+    if zone_name == "the_source" then return relation .. "source" end
+    return nil
+end
+
+function get_target_position_key(state, source_card, zone_key)
+    local source_side = _find_card_side(state, source_card)
+    return _zone_position_key(source_side, zone_key)
+end
+
+function can_ability_target_position(state, source_card, ability_key, zone_key)
+    local ability_def = _known_abilities[ability_key]
+    if ability_def == nil then
+        return false, "unknown ability key: " .. tostring(ability_key)
+    end
+
+    local target_position = get_target_position_key(state, source_card, zone_key)
+    if target_position == nil then
+        return false, "unsupported target zone: " .. tostring(zone_key)
+    end
+
+    local target_positions = ability_def.target_positions or {}
+    for _, allowed_position in ipairs(target_positions) do
+        if allowed_position == target_position then
+            return true, nil
+        end
+    end
+    return false, target_position
+end
+
+local function _validate_defender_target_position(state, source_card, ability_key, event_data)
+    local defender_card = event_data ~= nil and event_data.defender_card or nil
+    if defender_card == nil then return nil end
+
+    local defender_zone_key = _find_card_zone_key(state, defender_card)
+    if defender_zone_key == nil then
+        return "defender card not found in battle state for ability target validation"
+    end
+
+    local allowed, allowed_info = can_ability_target_position(state, source_card, ability_key, defender_zone_key)
+    if allowed then
+        event_data.defender_line_key = defender_zone_key
+        if defender_zone_key == "alpha_the_void" or defender_zone_key == "omega_the_void" then
+            event_data.defender_side_void = defender_zone_key
+        end
+        return nil
+    end
+    return "target position is not allowed for ability " .. tostring(ability_key) .. ": " .. tostring(allowed_info)
 end
 
 local function _line_has_card_code(line, code_name)
@@ -271,19 +387,13 @@ local function _handle_spinning_slash(state, attacker_card, event_data)
 end
 
 -- cross_guard: when played as attacker (ability-type), increases the target card's final_def by 200.
--- Requires an azure_blade card in the attacker's front line and only targets cards on a front line.
+-- Requires an azure_blade card in the attacker's front line; target may be in any zone.
 local function _handle_cross_guard(state, source_card, event_data)
     lib_battle_common.dlog("== [ability] cross_guard ====================")
     local target_card = (event_data or {}).defender_card
-    local target_line_key = (event_data or {}).defender_line_key
     if target_card == nil then
         lib_battle_common.dlog("[ability] cross_guard: skip - defender_card is nil in event_data")
         return {}, nil
-    end
-
-    if target_line_key == nil or not string.find(target_line_key, "_front_line", 1, true) then
-        lib_battle_common.dlog("[ability] cross_guard: error - target is not on front_line (line=" .. tostring(target_line_key) .. ")")
-        return {}, "cross_guard can only target cards on front_line"
     end
 
     local source_side = _find_card_side(state, source_card)
@@ -372,6 +482,12 @@ local function _dispatch_one_ability(state, source_card, key, trigger_event, eve
     if ability_def.event ~= nil and ability_def.event ~= trigger_event then
         lib_battle_common.dlog("[ability] dispatch: key=" .. key .. " skip - registered for event=" .. ability_def.event .. " but current event=" .. trigger_event)
         return {}, nil
+    end
+
+    local target_err = _validate_defender_target_position(state, source_card, key, event_data)
+    if target_err ~= nil then
+        lib_battle_common.dlog("[ability] dispatch: key=" .. key .. " target validation failed - " .. target_err)
+        return {}, target_err
     end
 
     lib_battle_common.dlog("[ability] dispatch: key=" .. key .. " FIRING on event=" .. trigger_event)
