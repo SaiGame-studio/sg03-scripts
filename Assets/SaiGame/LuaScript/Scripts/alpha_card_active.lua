@@ -2,6 +2,10 @@ require "lib_battle_common"
 require "lib_card_ability"
 require "lib_battle_entity_ai"
 require "enemy_ai_goblin_shaman"
+require "ability_twin_reaper"
+require "ability_spinning_slash"
+require "ability_cross_guard"
+require "ability_totem_pulse"
 
 local run_enemy_defend        -- forward declaration
 local apply_attack            -- forward declaration
@@ -55,15 +59,30 @@ local function find_card_in_lines(named_lines, inventory_item_id)
     return nil, nil, nil
 end
 
--- Locates attacker and defender cards across all battle lines in the given state.
--- Returns: attacker_card, attacker_line_key, defender_card, defender_line_key, defender_side_void
-local function resolve_cards(state)
-    local named_lines = {
+local function build_named_lines(state)
+    return {
         { line = state.alpha_front_line or {}, line_key = "alpha_front_line", side_void = "alpha_the_void" },
         { line = state.alpha_back_line  or {}, line_key = "alpha_back_line",  side_void = "alpha_the_void" },
         { line = state.omega_front_line or {}, line_key = "omega_front_line", side_void = "omega_the_void" },
         { line = state.omega_back_line  or {}, line_key = "omega_back_line",  side_void = "omega_the_void" },
     }
+end
+
+local function build_named_zones(state)
+    local named_zones = build_named_lines(state)
+    table.insert(named_zones, { line = state.alpha_hand or {},       line_key = "alpha_hand",       side_void = nil })
+    table.insert(named_zones, { line = state.omega_hand or {},       line_key = "omega_hand",       side_void = nil })
+    table.insert(named_zones, { line = state.alpha_the_void or {},   line_key = "alpha_the_void",   side_void = "alpha_the_void" })
+    table.insert(named_zones, { line = state.omega_the_void or {},   line_key = "omega_the_void",   side_void = "omega_the_void" })
+    table.insert(named_zones, { line = state.alpha_the_source or {}, line_key = "alpha_the_source", side_void = nil })
+    table.insert(named_zones, { line = state.omega_the_source or {}, line_key = "omega_the_source", side_void = nil })
+    return named_zones
+end
+
+-- Locates attacker and defender cards across all battle lines in the given state.
+-- Returns: attacker_card, attacker_line_key, defender_card, defender_line_key, defender_side_void
+local function resolve_cards(state)
+    local named_lines = build_named_lines(state)
     local attacker_card, attacker_line_key = find_card_in_lines(named_lines, payload.attacker_inventory_item_id)
     local defender_card, defender_line_key, defender_side_void = find_card_in_lines(named_lines, payload.defender_inventory_item_id)
     return attacker_card, attacker_line_key, defender_card, defender_line_key, defender_side_void
@@ -113,12 +132,7 @@ end
 -- Resolves attacker card only (no defender card required).
 -- Returns: attacker_card, attacker_line_key, attacker_def, err
 local function resolve_attacker_context(state)
-    local named_lines = {
-        { line = state.alpha_front_line or {}, line_key = "alpha_front_line", side_void = "alpha_the_void" },
-        { line = state.alpha_back_line  or {}, line_key = "alpha_back_line",  side_void = "alpha_the_void" },
-        { line = state.omega_front_line or {}, line_key = "omega_front_line", side_void = "omega_the_void" },
-        { line = state.omega_back_line  or {}, line_key = "omega_back_line",  side_void = "omega_the_void" },
-    }
+    local named_lines = build_named_lines(state)
     local attacker_card, attacker_line_key = find_card_in_lines(named_lines, payload.attacker_inventory_item_id)
     if attacker_card == nil then return nil, nil, nil, "attacker card not found in any battle line" end
     if attacker_card.trigger == true then return nil, nil, nil, "attacker card has already attacked this turn" end
@@ -131,20 +145,104 @@ local function resolve_attacker_context(state)
     return attacker_card, attacker_line_key, attacker_def, nil
 end
 
+local function resolve_defender_anywhere(state)
+    return find_card_in_lines(build_named_zones(state), payload.defender_inventory_item_id)
+end
+
+local function resolve_pending_defender(state, pending_atk)
+    if pending_atk == nil or pending_atk.defender_inventory_item_id == nil or pending_atk.defender_inventory_item_id == "" then
+        return nil, nil, nil
+    end
+    return find_card_in_lines(build_named_lines(state), pending_atk.defender_inventory_item_id)
+end
+
 -- Resolves cards & defs, validates action preconditions.
 -- Returns: attacker_card, attacker_line_key, attacker_def,
 --          defender_card, defender_line_key, defender_side_void, defender_def, err
 local function resolve_attack_context(state)
-    local attacker_card, attacker_line_key, defender_card, defender_line_key, defender_side_void = resolve_cards(state)
+    local attacker_card, attacker_line_key = find_card_in_lines(build_named_lines(state), payload.attacker_inventory_item_id)
     if attacker_card == nil then return nil, nil, nil, nil, nil, nil, nil, "attacker card not found in any battle line" end
     if attacker_card.trigger == true then return nil, nil, nil, nil, nil, nil, nil, "attacker card has already attacked this turn" end
-    if defender_card == nil then return nil, nil, nil, nil, nil, nil, nil, "defender card not found in any battle line" end
+
+    local defender_card, defender_line_key, defender_side_void = resolve_defender_anywhere(state)
+    if defender_card == nil then return nil, nil, nil, nil, nil, nil, nil, "defender card not found in battle state" end
 
     local attacker_def, defender_def, def_err = resolve_item_defs(state, attacker_card, defender_card)
     if def_err ~= nil then return nil, nil, nil, nil, nil, nil, nil, def_err end
 
     return attacker_card, attacker_line_key, attacker_def,
            defender_card, defender_line_key, defender_side_void, defender_def, nil
+end
+
+local function activate_attack_ability(state,
+    attacker_card, attacker_line_key, attacker_def,
+    defender_card, defender_def, defender_line_key, defender_side_void)
+    local attacker_type = attacker_def.metadata ~= nil and attacker_def.metadata.type or nil
+    local allowed_ability_keys = {}
+    if attacker_type == "ability" then
+        table.insert(allowed_ability_keys, attacker_card.item_definition_code_name)
+    else
+        for _, ability_key in ipairs(lib_card_ability.get_ability_keys(attacker_card, state.item_defs)) do
+            table.insert(allowed_ability_keys, ability_key)
+        end
+    end
+    if #allowed_ability_keys == 0 then
+        return "defender card is outside battle lines and attacker has no attack ability"
+    end
+
+    local can_target = false
+    local target_position = nil
+    for _, ability_key in ipairs(allowed_ability_keys) do
+        local allowed, allowed_info = lib_card_ability.can_ability_target_position(
+            state,
+            attacker_card,
+            ability_key,
+            defender_line_key
+        )
+        if allowed then
+            can_target = true
+            break
+        end
+        target_position = allowed_info
+    end
+    if not can_target then
+        return "target position is not allowed for this ability: " .. tostring(target_position)
+    end
+
+    lib_battle_common.dlog("[alpha_card_active] == phase 2: ability-only target ==")
+    local event_data = {}
+    event_data.defender_card      = defender_card
+    event_data.damage_dealt       = 0
+    event_data.attacker_def       = attacker_def
+    event_data.defender_def       = defender_def
+    event_data.defender_line_key  = defender_line_key
+    event_data.defender_side_void = defender_side_void
+
+    local ability_actions
+    local ability_err
+    if attacker_type == "ability" then
+        ability_actions, ability_err = lib_card_ability.trigger_ability_by_key(
+            state,
+            attacker_card,
+            attacker_card.item_definition_code_name,
+            "on_attack",
+            event_data
+        )
+    else
+        ability_actions, ability_err = lib_card_ability.trigger_card_ability(
+            state,
+            attacker_card,
+            "on_attack",
+            event_data
+        )
+    end
+    if ability_err ~= nil then return ability_err end
+
+    attacker_card.trigger = true
+    for _, action in ipairs(ability_actions or {}) do
+        lib_battle_common.append_client_action(state, action)
+    end
+    return nil
 end
 
 -- Dispatches to the enemy-specific defending function after alpha's card action is planned.
@@ -181,16 +279,26 @@ local function resolve_alpha_attack(state,
     lib_battle_common.dlog("[alpha_card_active] == phase 3: resolving action ==")
     local pending_atk  = state.pending_attack
     local final_damage = pending_atk ~= nil and pending_atk.damage_dealt or 0
+    local live_defender_card, live_defender_line_key, live_defender_side_void = resolve_pending_defender(state, pending_atk)
+    if live_defender_card == nil then
+        lib_battle_common.dlog("[alpha_card_active] defender no longer on field, skipping resolve: " .. tostring(pending_atk ~= nil and pending_atk.defender_inventory_item_id or nil))
+        state.pending_attack = nil
+        attacker_card.trigger = true
+        attacker_card.face_up = true
+        attacker_card.expose  = true
+        lib_battle_common.append_client_action(state, "alpha_card_expose:" .. attacker_card.inventory_item_id)
+        return nil
+    end
     lib_battle_common.dlog("[alpha_card_active] final_damage=" .. final_damage)
     local attack_err = lib_battle_common.card_attack_card(
         state,
         attacker_card, attacker_def, attacker_line_key,
-        defender_card, defender_def, defender_line_key, defender_side_void,
+        live_defender_card, defender_def, live_defender_line_key, live_defender_side_void,
         final_damage
     )
     if attack_err ~= nil then return attack_err end
     state.pending_attack = nil
-    log_defender_status(defender_card)
+    log_defender_status(live_defender_card)
     return nil
 end
 
@@ -284,6 +392,24 @@ local function main()
           defender_card, defender_line_key, defender_side_void, defender_def,
           ctx_err = resolve_attack_context(state)
     if ctx_err ~= nil then output.error = ctx_err ; return end
+
+    local target_is_on_battle_line =
+        defender_line_key == "alpha_front_line" or
+        defender_line_key == "alpha_back_line"  or
+        defender_line_key == "omega_front_line" or
+        defender_line_key == "omega_back_line"
+
+    if not target_is_on_battle_line then
+        local ability_err = activate_attack_ability(
+            state,
+            attacker_card, attacker_line_key, attacker_def,
+            defender_card, defender_def, defender_line_key, defender_side_void
+        )
+        if ability_err ~= nil then output.error = ability_err ; return end
+        local commit_err = commit_attack_result(session_id, state, is_development)
+        if commit_err ~= nil then output.error = commit_err ; return end
+        return
+    end
 
     local attack_err = apply_attack(
         session_id, state,
