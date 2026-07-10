@@ -63,6 +63,7 @@ function get_ability_config(ability_key)
         spinning_slash = { event = "on_attack", target_positions = { "enemy_frontline" } },
         cross_guard = { event = "on_attack", target_positions = { "own_frontline" } },
         totem_pulse = { event = "on_defend", target_positions = { "own_frontline" } },
+        back_stab = { event = "on_attack", target_positions = { "enemy_frontline" } },
     }
     return configs[ability_key]
 end
@@ -252,14 +253,6 @@ function deal_damage_to_character(state, attacker_card, target_card, damage, tar
     return damage_actions, nil
 end
 
-local _ability_helpers = {
-    lib_battle_common = lib_battle_common,
-    deal_damage_to_character = deal_damage_to_character,
-    find_card_side = _find_card_side,
-    find_item_def = _find_item_def,
-    find_line_card_by_code = _find_line_card_by_code,
-}
-
 local function _get_ability_library(ability_key)
     if ability_key == "twin_reaper" then
         return ability_twin_reaper
@@ -269,8 +262,41 @@ local function _get_ability_library(ability_key)
         return ability_cross_guard
     elseif ability_key == "totem_pulse" then
         return ability_totem_pulse
+    elseif ability_key == "back_stab" then
+        return ability_back_stab
     end
     return nil
+end
+
+local function _get_item_def_race(item_def)
+    if item_def == nil or item_def.metadata == nil then return nil end
+    return item_def.metadata.race
+end
+
+local function _find_line_character_by_race(line, item_defs, race)
+    for _, line_card in ipairs(line or {}) do
+        local has_id = line_card.inventory_item_id ~= nil and line_card.inventory_item_id ~= ""
+        if has_id then
+            local item_def = _find_item_def(item_defs, line_card.item_definition_code_name)
+            local card_type = item_def ~= nil and item_def.metadata ~= nil and item_def.metadata.type or nil
+            local card_race = _get_item_def_race(item_def)
+            if card_type == "character" and card_race == race then
+                return line_card
+            end
+        end
+    end
+    return nil
+end
+
+local function _build_ability_helpers()
+    return {
+        lib_battle_common = lib_battle_common,
+        deal_damage_to_character = deal_damage_to_character,
+        find_card_side = _find_card_side,
+        find_item_def = _find_item_def,
+        find_line_card_by_code = _find_line_card_by_code,
+        find_line_character_by_race = _find_line_character_by_race,
+    }
 end
 
 -- Calls the handler for one ability key only if its registered event matches trigger_event.
@@ -300,7 +326,7 @@ local function _dispatch_one_ability(state, source_card, key, trigger_event, eve
     end
 
     lib_battle_common.dlog("[ability] dispatch: key=" .. key .. " FIRING on event=" .. trigger_event)
-    return ability_library.execute(state, source_card, event_data, _ability_helpers)
+    return ability_library.execute(state, source_card, event_data, _build_ability_helpers())
 end
 
 -- Fires ALL abilities listed in card.metadata.abilities for the given trigger_event.

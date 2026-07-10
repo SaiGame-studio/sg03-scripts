@@ -4,6 +4,7 @@ require "ability_twin_reaper"
 require "ability_spinning_slash"
 require "ability_cross_guard"
 require "ability_totem_pulse"
+require "ability_back_stab"
 
 -- alpha_card_deploy
 -- Finalizes the opening deploy for alpha (player) only.

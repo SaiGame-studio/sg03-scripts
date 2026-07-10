@@ -1,7 +1,7 @@
 # ss-go Lua Script Contract
 
-Package: ss-go-lua-ai-contract-pack v1.0.0
-Ticket: P2-T80
+Package: ss-go-lua-ai-contract-pack v1.0.6
+Ticket: P2-T120
 
 This is the contract an AI agent must follow when generating Lua scripts for studio members.
 
@@ -144,7 +144,7 @@ output.damage = combat_helpers.apply_crit(dmg, payload.crit_rate)
 | Library name | Must match `^[a-z][a-z0-9_]*$` |
 | Access pattern | `libname.func(args)` — each library is exposed as a sandboxed global table |
 | Nesting | Libraries cannot include other libraries |
-| Cap | Maximum **7** active library scripts per game |
+| Cap | No separate limit (subject to the game's total script quota) |
 | Scope | Libraries are game-scoped; a script may only include libraries in the same game |
 
 ### Library authoring

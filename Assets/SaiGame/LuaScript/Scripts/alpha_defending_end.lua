@@ -5,6 +5,7 @@ require "ability_twin_reaper"
 require "ability_spinning_slash"
 require "ability_cross_guard"
 require "ability_totem_pulse"
+require "ability_back_stab"
 
 -- alpha_defending_end.lua
 -- Ends Alpha's defending phase by executing the queued Omega plan entries

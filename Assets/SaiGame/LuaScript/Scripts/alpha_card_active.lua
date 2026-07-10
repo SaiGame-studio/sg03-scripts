@@ -6,6 +6,7 @@ require "ability_twin_reaper"
 require "ability_spinning_slash"
 require "ability_cross_guard"
 require "ability_totem_pulse"
+require "ability_back_stab"
 
 local run_enemy_defend        -- forward declaration
 local apply_attack            -- forward declaration

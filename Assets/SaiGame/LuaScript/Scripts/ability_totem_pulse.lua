@@ -1,6 +1,6 @@
 -- ability_totem_pulse  (is_library = true)
 
-local function _find_untriggered_goblin_shaman(front_line)
+function totem_pulse_find_untriggered_goblin_shaman(front_line)
     for _, front_card in ipairs(front_line) do
         local has_id = front_card.inventory_item_id ~= nil and front_card.inventory_item_id ~= ""
         local is_shaman = front_card.item_definition_code_name == "goblin_shaman"
@@ -22,7 +22,7 @@ function execute(state, source_card, event_data, helpers)
     local def_add = (totem_item_def ~= nil and totem_item_def.base_stats ~= nil and totem_item_def.base_stats.def_add) or 0
     battle.dlog("[ability] totem_pulse: source=" .. source_card.inventory_item_id .. " side=" .. source_side .. " def_add=" .. def_add)
 
-    local shaman_card = _find_untriggered_goblin_shaman(front_line)
+    local shaman_card = totem_pulse_find_untriggered_goblin_shaman(front_line)
     if shaman_card == nil then
         battle.dlog("[ability] totem_pulse: no untriggered goblin_shaman in " .. front_line_key .. ", skip")
         return {}, nil
