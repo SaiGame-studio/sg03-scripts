@@ -1,7 +1,4 @@
-local M = {
-    event = "on_defend",
-    target_positions = { "own_frontline" },
-}
+-- ability_totem_pulse  (is_library = true)
 
 local function _find_untriggered_goblin_shaman(front_line)
     for _, front_card in ipairs(front_line) do
@@ -14,7 +11,7 @@ local function _find_untriggered_goblin_shaman(front_line)
     return nil
 end
 
-function M.execute(state, source_card, event_data, helpers)
+function execute(state, source_card, event_data, helpers)
     local battle = helpers.lib_battle_common
     battle.dlog("== [ability] totem_pulse ====================")
 
@@ -54,5 +51,3 @@ function M.execute(state, source_card, event_data, helpers)
     table.insert(ability_actions, source_side .. "_card_sent_to_void:" .. source_card.inventory_item_id)
     return ability_actions, nil
 end
-
-return M

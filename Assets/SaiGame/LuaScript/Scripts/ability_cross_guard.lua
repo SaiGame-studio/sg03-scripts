@@ -1,9 +1,6 @@
-local M = {
-    event = "on_attack",
-    target_positions = { "own_frontline" },
-}
+-- ability_cross_guard  (is_library = true)
 
-function M.execute(state, source_card, event_data, helpers)
+function execute(state, source_card, event_data, helpers)
     local battle = helpers.lib_battle_common
     battle.dlog("== [ability] cross_guard ====================")
 
@@ -33,5 +30,3 @@ function M.execute(state, source_card, event_data, helpers)
     }
     return guard_actions, nil
 end
-
-return M

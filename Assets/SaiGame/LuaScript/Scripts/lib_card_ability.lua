@@ -8,23 +8,9 @@
 -- A card with a nil/empty metadata.abilities string has no active abilities.
 --
 -- To add a new ability:
---   1. Create a module file in `Scripts`, for example `ability_<ability_key>.lua`.
---   2. Register it inside `_known_abilities` below.
---   3. Export:
---        return {
---            event = "on_attack",
---            target_positions = { "enemy_frontline" },
---            execute = function(state, card, event_data, helpers)
---                return extra_client_actions, err
---            end
---        }
-
-local _known_abilities = {
-    twin_reaper    = require "ability_twin_reaper",
-    spinning_slash = require "ability_spinning_slash",
-    cross_guard    = require "ability_cross_guard",
-    totem_pulse    = require "ability_totem_pulse",
-}
+--   1. Create a library script in `Scripts`, for example `ability_<ability_key>.lua`.
+--   2. Add its config to `get_ability_config`.
+--   3. Add a branch in `_get_ability_library` so the dispatcher can call `<library>.execute(...)`.
 
 -- Valid target_positions:
 --   own_frontline
@@ -72,7 +58,13 @@ function get_ability_keys(source_card, item_defs)
 end
 
 function get_ability_config(ability_key)
-    return _known_abilities[ability_key]
+    local configs = {
+        twin_reaper = { event = "on_attack", target_positions = { "enemy_frontline" } },
+        spinning_slash = { event = "on_attack", target_positions = { "enemy_frontline" } },
+        cross_guard = { event = "on_attack", target_positions = { "own_frontline" } },
+        totem_pulse = { event = "on_defend", target_positions = { "own_frontline" } },
+    }
+    return configs[ability_key]
 end
 
 -- Returns "alpha" or "omega" by scanning state lines for the given card.
@@ -165,7 +157,7 @@ function get_target_position_key(state, source_card, zone_key)
 end
 
 function can_ability_target_position(state, source_card, ability_key, zone_key)
-    local ability_def = _known_abilities[ability_key]
+    local ability_def = get_ability_config(ability_key)
     if ability_def == nil then
         return false, "unknown ability key: " .. tostring(ability_key)
     end
@@ -268,13 +260,26 @@ local _ability_helpers = {
     find_line_card_by_code = _find_line_card_by_code,
 }
 
+local function _get_ability_library(ability_key)
+    if ability_key == "twin_reaper" then
+        return ability_twin_reaper
+    elseif ability_key == "spinning_slash" then
+        return ability_spinning_slash
+    elseif ability_key == "cross_guard" then
+        return ability_cross_guard
+    elseif ability_key == "totem_pulse" then
+        return ability_totem_pulse
+    end
+    return nil
+end
+
 -- Calls the handler for one ability key only if its registered event matches trigger_event.
 -- Returns: extra_client_actions (table), err (string or nil)
 local function _dispatch_one_ability(state, source_card, key, trigger_event, event_data)
     lib_battle_common.dlog("-- [ability] _dispatch_one_ability ----------------------")
-    local ability_def = _known_abilities[key]
+    local ability_def = get_ability_config(key)
     if ability_def == nil then
-        lib_battle_common.dlog("[ability] dispatch: key=" .. tostring(key) .. " UNKNOWN - not registered in _known_abilities")
+        lib_battle_common.dlog("[ability] dispatch: key=" .. tostring(key) .. " UNKNOWN - not registered in get_ability_config")
         return {}, "unknown ability key: " .. tostring(key)
     end
     if ability_def.event ~= nil and ability_def.event ~= trigger_event then
@@ -288,13 +293,14 @@ local function _dispatch_one_ability(state, source_card, key, trigger_event, eve
         return {}, target_err
     end
 
-    if type(ability_def.execute) ~= "function" then
+    local ability_library = _get_ability_library(key)
+    if ability_library == nil or type(ability_library.execute) ~= "function" then
         lib_battle_common.dlog("[ability] dispatch: key=" .. key .. " ERROR - execute handler missing")
         return {}, "no handler for ability key: " .. tostring(key)
     end
 
     lib_battle_common.dlog("[ability] dispatch: key=" .. key .. " FIRING on event=" .. trigger_event)
-    return ability_def.execute(state, source_card, event_data, _ability_helpers)
+    return ability_library.execute(state, source_card, event_data, _ability_helpers)
 end
 
 -- Fires ALL abilities listed in card.metadata.abilities for the given trigger_event.

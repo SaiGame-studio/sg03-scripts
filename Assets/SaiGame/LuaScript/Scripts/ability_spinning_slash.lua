@@ -1,9 +1,6 @@
-local M = {
-    event = "on_attack",
-    target_positions = { "enemy_frontline" },
-}
+-- ability_spinning_slash  (is_library = true)
 
-function M.execute(state, attacker_card, event_data, helpers)
+function execute(state, attacker_card, event_data, helpers)
     local battle = helpers.lib_battle_common
     battle.dlog("== [ability] spinning_slash ====================")
 
@@ -52,5 +49,3 @@ function M.execute(state, attacker_card, event_data, helpers)
     end
     return ability_actions, nil
 end
-
-return M

@@ -1,5 +1,9 @@
 require "lib_battle_common"
 require "lib_card_ability"
+require "ability_twin_reaper"
+require "ability_spinning_slash"
+require "ability_cross_guard"
+require "ability_totem_pulse"
 
 -- alpha_card_deploy
 -- Finalizes the opening deploy for alpha (player) only.

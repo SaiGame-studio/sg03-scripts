@@ -2,6 +2,10 @@ require "lib_battle_common"
 require "lib_card_ability"
 require "lib_battle_entity_ai"
 require "enemy_ai_goblin_shaman"
+require "ability_twin_reaper"
+require "ability_spinning_slash"
+require "ability_cross_guard"
+require "ability_totem_pulse"
 
 local run_enemy_defend        -- forward declaration
 local apply_attack            -- forward declaration
