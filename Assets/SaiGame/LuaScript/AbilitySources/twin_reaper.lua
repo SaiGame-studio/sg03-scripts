@@ -1,6 +1,5 @@
--- ability_twin_reaper  (is_library = true)
-
-function execute(state, attacker_card, event_data, helpers)
+-- ability: twin_reaper
+function twin_reaper_execute(state, attacker_card, event_data, helpers)
     local battle = helpers.lib_battle_common
     battle.dlog("== [ability] twin_reaper ====================")
 

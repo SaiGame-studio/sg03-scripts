@@ -1,6 +1,5 @@
--- ability_back_stab  (is_library = true)
-
-function execute(state, source_card, event_data, helpers)
+-- ability: back_stab
+function back_stab_execute(state, source_card, event_data, helpers)
     local battle = helpers.lib_battle_common
     battle.dlog("== [ability] back_stab ====================")
 

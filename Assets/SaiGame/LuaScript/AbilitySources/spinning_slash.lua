@@ -1,6 +1,5 @@
--- ability_spinning_slash  (is_library = true)
-
-function execute(state, attacker_card, event_data, helpers)
+-- ability: spinning_slash
+function spinning_slash_execute(state, attacker_card, event_data, helpers)
     local battle = helpers.lib_battle_common
     battle.dlog("== [ability] spinning_slash ====================")
 

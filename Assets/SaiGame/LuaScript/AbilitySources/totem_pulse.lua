@@ -1,5 +1,4 @@
--- ability_totem_pulse  (is_library = true)
-
+-- ability: totem_pulse
 function totem_pulse_find_untriggered_goblin_shaman(front_line)
     for _, front_card in ipairs(front_line) do
         local has_id = front_card.inventory_item_id ~= nil and front_card.inventory_item_id ~= ""
@@ -11,7 +10,7 @@ function totem_pulse_find_untriggered_goblin_shaman(front_line)
     return nil
 end
 
-function execute(state, source_card, event_data, helpers)
+function totem_pulse_execute(state, source_card, event_data, helpers)
     local battle = helpers.lib_battle_common
     battle.dlog("== [ability] totem_pulse ====================")
 

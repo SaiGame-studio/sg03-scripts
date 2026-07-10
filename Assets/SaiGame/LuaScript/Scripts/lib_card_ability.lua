@@ -8,9 +8,10 @@
 -- A card with a nil/empty metadata.abilities string has no active abilities.
 --
 -- To add a new ability:
---   1. Create a library script in `Scripts`, for example `ability_<ability_key>.lua`.
+--   1. Create/edit its source under `LuaScript/AbilitySources`.
 --   2. Add its config to `get_ability_config`.
---   3. Add a branch in `_get_ability_library` so the dispatcher can call `<library>.execute(...)`.
+--   3. Add a branch in `_get_ability_handler` so the dispatcher can call `ability_all.<ability>_execute(...)`.
+--   4. Regenerate `Scripts/ability_all.lua` from the sources.
 
 -- Valid target_positions:
 --   own_frontline
@@ -253,17 +254,17 @@ function deal_damage_to_character(state, attacker_card, target_card, damage, tar
     return damage_actions, nil
 end
 
-local function _get_ability_library(ability_key)
+local function _get_ability_handler(ability_key)
     if ability_key == "twin_reaper" then
-        return ability_twin_reaper
+        return ability_all.twin_reaper_execute
     elseif ability_key == "spinning_slash" then
-        return ability_spinning_slash
+        return ability_all.spinning_slash_execute
     elseif ability_key == "cross_guard" then
-        return ability_cross_guard
+        return ability_all.cross_guard_execute
     elseif ability_key == "totem_pulse" then
-        return ability_totem_pulse
+        return ability_all.totem_pulse_execute
     elseif ability_key == "back_stab" then
-        return ability_back_stab
+        return ability_all.back_stab_execute
     end
     return nil
 end
@@ -319,14 +320,14 @@ local function _dispatch_one_ability(state, source_card, key, trigger_event, eve
         return {}, target_err
     end
 
-    local ability_library = _get_ability_library(key)
-    if ability_library == nil or type(ability_library.execute) ~= "function" then
+    local ability_handler = _get_ability_handler(key)
+    if type(ability_handler) ~= "function" then
         lib_battle_common.dlog("[ability] dispatch: key=" .. key .. " ERROR - execute handler missing")
         return {}, "no handler for ability key: " .. tostring(key)
     end
 
     lib_battle_common.dlog("[ability] dispatch: key=" .. key .. " FIRING on event=" .. trigger_event)
-    return ability_library.execute(state, source_card, event_data, _build_ability_helpers())
+    return ability_handler(state, source_card, event_data, _build_ability_helpers())
 end
 
 -- Fires ALL abilities listed in card.metadata.abilities for the given trigger_event.

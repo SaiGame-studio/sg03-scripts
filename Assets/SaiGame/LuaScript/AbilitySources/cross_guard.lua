@@ -1,6 +1,5 @@
--- ability_cross_guard  (is_library = true)
-
-function execute(state, source_card, event_data, helpers)
+-- ability: cross_guard
+function cross_guard_execute(state, source_card, event_data, helpers)
     local battle = helpers.lib_battle_common
     battle.dlog("== [ability] cross_guard ====================")
 
