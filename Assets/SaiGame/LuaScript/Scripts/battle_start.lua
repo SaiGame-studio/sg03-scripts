@@ -200,8 +200,8 @@ verify_player_preset = function(preset_instance_id)
     if slots_err ~= nil then return nil, slots_err end
 
     local total = slots ~= nil and #slots or 0
-    if total <= DECK_CARD_MIN then
-        return nil, "player deck must have more than " .. DECK_CARD_MIN .. " cards (has " .. total .. ")"
+    if total < DECK_CARD_MIN then
+        return nil, "player deck must have at least " .. DECK_CARD_MIN .. " cards (has " .. total .. ")"
     end
     if total >= DECK_CARD_MAX then
         return nil, "player deck must have fewer than " .. DECK_CARD_MAX .. " cards (has " .. total .. ")"
@@ -217,8 +217,8 @@ check_enemy = function(e)
             total = total + (ability.card_count or 0)
         end
     end
-    if total <= DECK_CARD_MIN then
-        return "enemy deck must have more than " .. DECK_CARD_MIN .. " cards (has " .. total .. ")"
+    if total < DECK_CARD_MIN then
+        return "enemy deck must have at least " .. DECK_CARD_MIN .. " cards (has " .. total .. ")"
     end
     if total >= DECK_CARD_MAX then
         return "enemy deck must have fewer than " .. DECK_CARD_MAX .. " cards (has " .. total .. ")"
