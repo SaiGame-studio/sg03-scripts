@@ -1,4 +1,4 @@
-﻿function get_ability_config(ability_key)
+function get_ability_config(ability_key)
     local configs = {
         twin_reaper = { event = "on_attack", target_positions = { "enemy_frontline" } },
         spinning_slash = { event = "on_attack", target_positions = { "enemy_frontline" } },
@@ -142,7 +142,8 @@ function cross_guard_execute(state, source_card, event_data, helpers)
     battle.dlog("[ability] cross_guard: target=" .. target_card.inventory_item_id .. " final_def " .. prev_def .. " -> " .. target_card.final_def)
     local guard_actions = {
         expose_action,
-        source_side .. "_card_ability:source=" .. source_card.inventory_item_id .. ",ability=cross_guard,target=" .. target_card.inventory_item_id .. ",selected=" .. azure_blade_card.inventory_item_id
+        source_side .. "_card_ability:source=" .. source_card.inventory_item_id .. ",ability=cross_guard,target=" .. target_card.inventory_item_id .. ",selected=" .. azure_blade_card.inventory_item_id,
+        source_side .. "_card_guarded:" .. target_card.inventory_item_id
     }
     return guard_actions, nil
 end
@@ -188,6 +189,7 @@ function totem_pulse_execute(state, source_card, event_data, helpers)
             battle.dlog("[ability] totem_pulse: buffed card=" .. front_card.inventory_item_id .. " final_def " .. prev_def .. " -> " .. front_card.final_def)
             local buff_action = source_side .. "_card_ability:source=" .. source_card.inventory_item_id .. ",ability=totem_pulse,target=" .. front_card.inventory_item_id .. ",selected=" .. shaman_card.inventory_item_id
             table.insert(ability_actions, buff_action)
+            table.insert(ability_actions, source_side .. "_card_guarded:" .. front_card.inventory_item_id)
         end
     end
 
