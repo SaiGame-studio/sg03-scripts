@@ -49,7 +49,7 @@ function twin_reaper_execute(state, attacker_card, event_data, helpers)
     battle.dlog("[ability] twin_reaper: target=" .. target.inventory_item_id .. " slot=" .. (target.slot_index or 0) .. " damage=" .. damage)
 
     local attacker_side = helpers.find_card_side(state, attacker_card)
-    local ability_actions = { attacker_side .. "_card_ability:" .. attacker_card.inventory_item_id .. ",twin_reaper," .. target.inventory_item_id }
+    local ability_actions = { attacker_side .. "_card_ability:source=" .. attacker_card.inventory_item_id .. ",ability=twin_reaper,target=" .. target.inventory_item_id }
     local damage_actions, dmg_err = helpers.deal_damage_to_character(state, attacker_card, target, damage, defender_line, void_key)
     if dmg_err ~= nil then return ability_actions, dmg_err end
     for _, action in ipairs(damage_actions) do

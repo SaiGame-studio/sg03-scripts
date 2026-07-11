@@ -1,3 +1,4 @@
+config.lua
 twin_reaper.lua
 spinning_slash.lua
 cross_guard.lua

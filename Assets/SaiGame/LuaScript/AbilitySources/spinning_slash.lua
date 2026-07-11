@@ -35,11 +35,10 @@ function spinning_slash_execute(state, attacker_card, event_data, helpers)
     battle.dlog("[ability] spinning_slash: azure_blade=" .. azure_blade_card.inventory_item_id .. " atk_add=" .. atk_add .. " blade_atk=" .. blade_atk .. " total_damage=" .. damage)
 
     local defender_line = line_key ~= nil and state[line_key] or nil
-    azure_blade_card.face_up = true
-    azure_blade_card.expose = true
+    local expose_action = helpers.expose_ability_selected_card(state, azure_blade_card)
     local ability_actions = {
-        attacker_side .. "_card_expose:" .. azure_blade_card.inventory_item_id,
-        attacker_side .. "_card_ability:" .. attacker_card.inventory_item_id .. ",spinning_slash," .. defender.inventory_item_id
+        expose_action,
+        attacker_side .. "_card_ability:source=" .. attacker_card.inventory_item_id .. ",ability=spinning_slash,target=" .. defender.inventory_item_id .. ",selected=" .. azure_blade_card.inventory_item_id
     }
     local damage_actions, dmg_err = helpers.deal_damage_to_character(state, azure_blade_card, defender, damage, defender_line, void_key)
     if dmg_err ~= nil then return ability_actions, dmg_err end

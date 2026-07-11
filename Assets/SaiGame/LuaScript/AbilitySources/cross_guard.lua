@@ -20,12 +20,11 @@ function cross_guard_execute(state, source_card, event_data, helpers)
     local guard_bonus = 200
     local prev_def = target_card.final_def or 0
     target_card.final_def = prev_def + guard_bonus
-    azure_blade_card.face_up = true
-    azure_blade_card.expose = true
+    local expose_action = helpers.expose_ability_selected_card(state, azure_blade_card)
     battle.dlog("[ability] cross_guard: target=" .. target_card.inventory_item_id .. " final_def " .. prev_def .. " -> " .. target_card.final_def)
     local guard_actions = {
-        source_side .. "_card_expose:" .. azure_blade_card.inventory_item_id,
-        source_side .. "_card_ability:" .. source_card.inventory_item_id .. ",cross_guard," .. target_card.inventory_item_id
+        expose_action,
+        source_side .. "_card_ability:source=" .. source_card.inventory_item_id .. ",ability=cross_guard,target=" .. target_card.inventory_item_id .. ",selected=" .. azure_blade_card.inventory_item_id
     }
     return guard_actions, nil
 end

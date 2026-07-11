@@ -29,13 +29,15 @@ function totem_pulse_execute(state, source_card, event_data, helpers)
 
     battle.dlog("[ability] totem_pulse: untriggered goblin_shaman found: " .. shaman_card.inventory_item_id)
     local ability_actions = {}
+    local expose_action = helpers.expose_ability_selected_card(state, shaman_card)
+    if expose_action ~= nil then table.insert(ability_actions, expose_action) end
     for _, front_card in ipairs(front_line) do
         local has_id = front_card.inventory_item_id ~= nil and front_card.inventory_item_id ~= ""
         if has_id then
             local prev_def = front_card.final_def or 0
             front_card.final_def = prev_def + def_add
             battle.dlog("[ability] totem_pulse: buffed card=" .. front_card.inventory_item_id .. " final_def " .. prev_def .. " -> " .. front_card.final_def)
-            local buff_action = source_side .. "_card_ability:" .. source_card.inventory_item_id .. ",totem_pulse," .. front_card.inventory_item_id
+            local buff_action = source_side .. "_card_ability:source=" .. source_card.inventory_item_id .. ",ability=totem_pulse,target=" .. front_card.inventory_item_id .. ",selected=" .. shaman_card.inventory_item_id
             table.insert(ability_actions, buff_action)
         end
     end

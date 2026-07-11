@@ -31,11 +31,10 @@ function back_stab_execute(state, source_card, event_data, helpers)
     local damage = (goblin_item_def ~= nil and goblin_item_def.base_stats ~= nil and goblin_item_def.base_stats.atk) or 1
     battle.dlog("[ability] back_stab: goblin=" .. goblin_card.inventory_item_id .. " target=" .. defender.inventory_item_id .. " damage=" .. damage)
 
-    goblin_card.face_up = true
-    goblin_card.expose = true
+    local expose_action = helpers.expose_ability_selected_card(state, goblin_card)
     local ability_actions = {
-        source_side .. "_card_expose:" .. goblin_card.inventory_item_id,
-        source_side .. "_card_ability:" .. source_card.inventory_item_id .. ",back_stab," .. defender.inventory_item_id
+        expose_action,
+        source_side .. "_card_ability:source=" .. source_card.inventory_item_id .. ",ability=back_stab,target=" .. defender.inventory_item_id .. ",selected=" .. goblin_card.inventory_item_id
     }
     local damage_actions, dmg_err = helpers.deal_damage_to_character(state, goblin_card, defender, damage, defender_line, void_key)
     if dmg_err ~= nil then return ability_actions, dmg_err end
