@@ -227,7 +227,6 @@ function deal_damage_to_character(state, attacker_card, target_card, damage, tar
     end
 
     local final_def = target_card.final_def or 0
-
     local prev_damage = target_card.total_damage_received or 0
     target_card.total_damage_received = prev_damage + damage
     local defeated = target_card.total_damage_received >= final_def
@@ -235,6 +234,11 @@ function deal_damage_to_character(state, attacker_card, target_card, damage, tar
 
     local target_side = void_key == "alpha_the_void" and "alpha" or "omega"
     local damage_actions = {}
+    
+    if damage > 0 then
+        table.insert(damage_actions, target_side .. "_card_take_damage:target=" .. target_card.inventory_item_id .. ",damage=" .. damage .. ",total_damage=" .. target_card.total_damage_received)
+    end
+
     if defeated then
         if target_line ~= nil then
             lib_battle_common.remove_card_from_line(target_line, target_card.inventory_item_id)
@@ -244,8 +248,6 @@ function deal_damage_to_character(state, attacker_card, target_card, damage, tar
             table.insert(state[void_key], target_card)
         end
         table.insert(damage_actions, target_side .. "_card_sent_to_void:" .. target_card.inventory_item_id)
-    else
-        table.insert(damage_actions, target_side .. "_card_damaged:" .. target_card.inventory_item_id .. "," .. target_card.total_damage_received)
     end
     return damage_actions, nil
 end
