@@ -1,18 +1,13 @@
-﻿-- ability_all
--- Generated bundle from `Assets/SaiGame/LuaScript/AbilitySources`.
--- is_library = true
-
-function get_ability_config(ability_key)
+﻿function get_ability_config(ability_key)
     local configs = {
         twin_reaper = { event = "on_attack", target_positions = { "enemy_frontline" } },
         spinning_slash = { event = "on_attack", target_positions = { "enemy_frontline" } },
         cross_guard = { event = "on_attack", target_positions = { "own_frontline" } },
-        totem_pulse = { event = "on_defend", target_positions = { "own_frontline" } },
+        totem_pulse = { event = "on_attack", target_positions = { "own_frontline" } },
         back_stab = { event = "on_attack", target_positions = { "enemy_frontline" } },
     }
     return configs[ability_key]
 end
-
 -- ability: twin_reaper
 function twin_reaper_execute(state, attacker_card, event_data, helpers)
     local battle = helpers.lib_battle_common
@@ -72,7 +67,6 @@ function twin_reaper_execute(state, attacker_card, event_data, helpers)
     end
     return ability_actions, nil
 end
-
 -- ability: spinning_slash
 function spinning_slash_execute(state, attacker_card, event_data, helpers)
     local battle = helpers.lib_battle_common
@@ -122,7 +116,6 @@ function spinning_slash_execute(state, attacker_card, event_data, helpers)
     end
     return ability_actions, nil
 end
-
 -- ability: cross_guard
 function cross_guard_execute(state, source_card, event_data, helpers)
     local battle = helpers.lib_battle_common
@@ -153,7 +146,6 @@ function cross_guard_execute(state, source_card, event_data, helpers)
     }
     return guard_actions, nil
 end
-
 -- ability: totem_pulse
 function totem_pulse_find_untriggered_goblin_shaman(front_line)
     for _, front_card in ipairs(front_line) do
@@ -179,11 +171,12 @@ function totem_pulse_execute(state, source_card, event_data, helpers)
 
     local shaman_card = totem_pulse_find_untriggered_goblin_shaman(front_line)
     if shaman_card == nil then
-        battle.dlog("[ability] totem_pulse: no untriggered goblin_shaman in " .. front_line_key .. ", skip")
-        return {}, nil
+        battle.dlog("[ability] totem_pulse: error - no untriggered goblin_shaman in " .. front_line_key)
+        return {}, "totem_pulse requires untriggered goblin_shaman in front_line"
     end
 
     battle.dlog("[ability] totem_pulse: untriggered goblin_shaman found: " .. shaman_card.inventory_item_id)
+    shaman_card.trigger = true
     local ability_actions = {}
     local expose_action = helpers.expose_ability_selected_card(state, shaman_card)
     if expose_action ~= nil then table.insert(ability_actions, expose_action) end
@@ -206,9 +199,9 @@ function totem_pulse_execute(state, source_card, event_data, helpers)
     table.insert(state[void_key], source_card)
     battle.dlog("[ability] totem_pulse: source card sent to void=" .. void_key .. " id=" .. source_card.inventory_item_id)
     table.insert(ability_actions, source_side .. "_card_sent_to_void:" .. source_card.inventory_item_id)
+
     return ability_actions, nil
 end
-
 -- ability: back_stab
 function back_stab_execute(state, source_card, event_data, helpers)
     local battle = helpers.lib_battle_common
@@ -254,4 +247,3 @@ function back_stab_execute(state, source_card, event_data, helpers)
     end
     return ability_actions, nil
 end
-

@@ -23,11 +23,12 @@ function totem_pulse_execute(state, source_card, event_data, helpers)
 
     local shaman_card = totem_pulse_find_untriggered_goblin_shaman(front_line)
     if shaman_card == nil then
-        battle.dlog("[ability] totem_pulse: no untriggered goblin_shaman in " .. front_line_key .. ", skip")
-        return {}, nil
+        battle.dlog("[ability] totem_pulse: error - no untriggered goblin_shaman in " .. front_line_key)
+        return {}, "totem_pulse requires untriggered goblin_shaman in front_line"
     end
 
     battle.dlog("[ability] totem_pulse: untriggered goblin_shaman found: " .. shaman_card.inventory_item_id)
+    shaman_card.trigger = true
     local ability_actions = {}
     local expose_action = helpers.expose_ability_selected_card(state, shaman_card)
     if expose_action ~= nil then table.insert(ability_actions, expose_action) end
@@ -50,5 +51,6 @@ function totem_pulse_execute(state, source_card, event_data, helpers)
     table.insert(state[void_key], source_card)
     battle.dlog("[ability] totem_pulse: source card sent to void=" .. void_key .. " id=" .. source_card.inventory_item_id)
     table.insert(ability_actions, source_side .. "_card_sent_to_void:" .. source_card.inventory_item_id)
+
     return ability_actions, nil
 end
