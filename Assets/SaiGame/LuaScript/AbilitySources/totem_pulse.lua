@@ -1,6 +1,5 @@
--- ability_totem_pulse  (is_library = true)
-
-local function _find_untriggered_goblin_shaman(front_line)
+-- ability: totem_pulse
+function totem_pulse_find_untriggered_goblin_shaman(front_line)
     for _, front_card in ipairs(front_line) do
         local has_id = front_card.inventory_item_id ~= nil and front_card.inventory_item_id ~= ""
         local is_shaman = front_card.item_definition_code_name == "goblin_shaman"
@@ -11,7 +10,7 @@ local function _find_untriggered_goblin_shaman(front_line)
     return nil
 end
 
-function execute(state, source_card, event_data, helpers)
+function totem_pulse_execute(state, source_card, event_data, helpers)
     local battle = helpers.lib_battle_common
     battle.dlog("== [ability] totem_pulse ====================")
 
@@ -22,7 +21,7 @@ function execute(state, source_card, event_data, helpers)
     local def_add = (totem_item_def ~= nil and totem_item_def.base_stats ~= nil and totem_item_def.base_stats.def_add) or 0
     battle.dlog("[ability] totem_pulse: source=" .. source_card.inventory_item_id .. " side=" .. source_side .. " def_add=" .. def_add)
 
-    local shaman_card = _find_untriggered_goblin_shaman(front_line)
+    local shaman_card = totem_pulse_find_untriggered_goblin_shaman(front_line)
     if shaman_card == nil then
         battle.dlog("[ability] totem_pulse: no untriggered goblin_shaman in " .. front_line_key .. ", skip")
         return {}, nil
@@ -30,13 +29,15 @@ function execute(state, source_card, event_data, helpers)
 
     battle.dlog("[ability] totem_pulse: untriggered goblin_shaman found: " .. shaman_card.inventory_item_id)
     local ability_actions = {}
+    local expose_action = helpers.expose_ability_selected_card(state, shaman_card)
+    if expose_action ~= nil then table.insert(ability_actions, expose_action) end
     for _, front_card in ipairs(front_line) do
         local has_id = front_card.inventory_item_id ~= nil and front_card.inventory_item_id ~= ""
         if has_id then
             local prev_def = front_card.final_def or 0
             front_card.final_def = prev_def + def_add
             battle.dlog("[ability] totem_pulse: buffed card=" .. front_card.inventory_item_id .. " final_def " .. prev_def .. " -> " .. front_card.final_def)
-            local buff_action = source_side .. "_card_ability:" .. source_card.inventory_item_id .. ",totem_pulse," .. front_card.inventory_item_id
+            local buff_action = source_side .. "_card_ability:source=" .. source_card.inventory_item_id .. ",ability=totem_pulse,target=" .. front_card.inventory_item_id .. ",selected=" .. shaman_card.inventory_item_id
             table.insert(ability_actions, buff_action)
         end
     end

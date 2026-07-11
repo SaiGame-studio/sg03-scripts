@@ -1,6 +1,6 @@
 # Lua Script Agent Prompt
 
-Package: ss-go-lua-ai-contract-pack v1.0.0
+Package: ss-go-lua-ai-contract-pack v1.0.6
 
 Use this prompt as the fixed context when asking an AI agent to write an ss-go Lua script.
 
@@ -56,11 +56,11 @@ Available game API only:
 - game.battle_session_flee(session_id) -> err
 - game.open_entity_drop_packs(session_id, entity_def_id, pack_ids) -> list, err
 
-Library scripts and include directives:
-- A script may declare `include <libname>` directives at the top of its body (one per line).
+Library scripts and require directives:
+- A script may declare `require "libname"` or `require 'libname'` directives at the top of its body (one per line).
 - Each declared library is injected as a sandboxed global table: call its functions as `libname.func(args)`.
-- Library names must match ^[a-z][a-z0-9_]*$. Max 7 active libraries per game.
-- Library scripts (is_library = true) may only define Lua functions. Do not write top-level executable statements or `include` directives inside a library.
+- Library names must match ^[a-z][a-z0-9_]*$.
+- Library scripts (is_library = true) may only define Lua functions. Do not write top-level executable statements or `require` directives inside a library.
 
 Rules:
 - Return only one Lua script body unless explanation is explicitly requested.

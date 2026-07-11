@@ -8,9 +8,10 @@
 -- A card with a nil/empty metadata.abilities string has no active abilities.
 --
 -- To add a new ability:
---   1. Create a library script in `Scripts`, for example `ability_<ability_key>.lua`.
+--   1. Create/edit its source under `LuaScript/AbilitySources`.
 --   2. Add its config to `get_ability_config`.
---   3. Add a branch in `_get_ability_library` so the dispatcher can call `<library>.execute(...)`.
+--   3. Add a branch in `_get_ability_handler` so the dispatcher can call `ability_all.<ability>_execute(...)`.
+--   4. Regenerate `Scripts/ability_all.lua` from the sources.
 
 -- Valid target_positions:
 --   own_frontline
@@ -57,15 +58,7 @@ function get_ability_keys(source_card, item_defs)
     return _get_ability_keys(source_card, item_defs)
 end
 
-function get_ability_config(ability_key)
-    local configs = {
-        twin_reaper = { event = "on_attack", target_positions = { "enemy_frontline" } },
-        spinning_slash = { event = "on_attack", target_positions = { "enemy_frontline" } },
-        cross_guard = { event = "on_attack", target_positions = { "own_frontline" } },
-        totem_pulse = { event = "on_defend", target_positions = { "own_frontline" } },
-    }
-    return configs[ability_key]
-end
+
 
 -- Returns "alpha" or "omega" by scanning state lines for the given card.
 local function _find_card_side(state, card)
@@ -157,7 +150,7 @@ function get_target_position_key(state, source_card, zone_key)
 end
 
 function can_ability_target_position(state, source_card, ability_key, zone_key)
-    local ability_def = get_ability_config(ability_key)
+    local ability_def = ability_all.get_ability_config(ability_key)
     if ability_def == nil then
         return false, "unknown ability key: " .. tostring(ability_key)
     end
@@ -202,12 +195,17 @@ local function _validate_defender_target_position(state, source_card, ability_ke
 end
 
 local function _find_line_card_by_code(line, code_name)
+    local fallback = nil
     for _, line_card in ipairs(line or {}) do
         if line_card.item_definition_code_name == code_name then
-            return line_card
+            if line_card.expose then
+                return line_card
+            else
+                if fallback == nil then fallback = line_card end
+            end
         end
     end
-    return nil
+    return fallback
 end
 
 -- Applies damage to target_card, clears its slot from target_line if defeated, and
@@ -229,7 +227,6 @@ function deal_damage_to_character(state, attacker_card, target_card, damage, tar
     end
 
     local final_def = target_card.final_def or 0
-
     local prev_damage = target_card.total_damage_received or 0
     target_card.total_damage_received = prev_damage + damage
     local defeated = target_card.total_damage_received >= final_def
@@ -237,6 +234,11 @@ function deal_damage_to_character(state, attacker_card, target_card, damage, tar
 
     local target_side = void_key == "alpha_the_void" and "alpha" or "omega"
     local damage_actions = {}
+    
+    if damage > 0 then
+        table.insert(damage_actions, target_side .. "_card_take_damage:target=" .. target_card.inventory_item_id .. ",damage=" .. damage .. ",total_damage=" .. target_card.total_damage_received)
+    end
+
     if defeated then
         if target_line ~= nil then
             lib_battle_common.remove_card_from_line(target_line, target_card.inventory_item_id)
@@ -246,38 +248,97 @@ function deal_damage_to_character(state, attacker_card, target_card, damage, tar
             table.insert(state[void_key], target_card)
         end
         table.insert(damage_actions, target_side .. "_card_sent_to_void:" .. target_card.inventory_item_id)
-    else
-        table.insert(damage_actions, target_side .. "_card_damaged:" .. target_card.inventory_item_id .. "," .. target_card.total_damage_received)
     end
     return damage_actions, nil
 end
 
-local _ability_helpers = {
-    lib_battle_common = lib_battle_common,
-    deal_damage_to_character = deal_damage_to_character,
-    find_card_side = _find_card_side,
-    find_item_def = _find_item_def,
-    find_line_card_by_code = _find_line_card_by_code,
-}
-
-local function _get_ability_library(ability_key)
+local function _get_ability_handler(ability_key)
     if ability_key == "twin_reaper" then
-        return ability_twin_reaper
+        return ability_all.twin_reaper_execute
     elseif ability_key == "spinning_slash" then
-        return ability_spinning_slash
+        return ability_all.spinning_slash_execute
     elseif ability_key == "cross_guard" then
-        return ability_cross_guard
+        return ability_all.cross_guard_execute
     elseif ability_key == "totem_pulse" then
-        return ability_totem_pulse
+        return ability_all.totem_pulse_execute
+    elseif ability_key == "back_stab" then
+        return ability_all.back_stab_execute
     end
     return nil
+end
+
+local function _get_item_def_race(item_def)
+    if item_def == nil or item_def.metadata == nil then return nil end
+    return item_def.metadata.race
+end
+
+local function _find_line_character_by_race(line, item_defs, race)
+    local fallback = nil
+    for _, line_card in ipairs(line or {}) do
+        local has_id = line_card.inventory_item_id ~= nil and line_card.inventory_item_id ~= ""
+        if has_id then
+            local item_def = _find_item_def(item_defs, line_card.item_definition_code_name)
+            local card_type = item_def ~= nil and item_def.metadata ~= nil and item_def.metadata.type or nil
+            local card_race = _get_item_def_race(item_def)
+            if card_type == "character" and card_race == race then
+                if line_card.expose then
+                    return line_card
+                else
+                    if fallback == nil then fallback = line_card end
+                end
+            end
+        end
+    end
+    return fallback
+end
+
+local function _find_line_card_by_type_and_char_code(line, item_defs, card_type_req, char_code_req)
+    local fallback = nil
+    for _, line_card in ipairs(line or {}) do
+        local has_id = line_card.inventory_item_id ~= nil and line_card.inventory_item_id ~= ""
+        if has_id then
+            local item_def = _find_item_def(item_defs, line_card.item_definition_code_name)
+            local card_type = item_def ~= nil and item_def.metadata ~= nil and item_def.metadata.type or nil
+            local card_char_code = item_def ~= nil and item_def.metadata ~= nil and item_def.metadata.char_code or nil
+            if card_type == card_type_req and card_char_code == char_code_req then
+                if line_card.expose then
+                    return line_card
+                else
+                    if fallback == nil then fallback = line_card end
+                end
+            end
+        end
+    end
+    return fallback
+end
+
+local function _expose_ability_selected_card(state, card)
+    if card == nil then return nil end
+    card.face_up = true
+    card.expose = true
+    local side = _find_card_side(state, card)
+    if side == nil or side == "unknown" then return nil end
+    return side .. "_card_expose:" .. card.inventory_item_id
+end
+
+local function _build_ability_helpers()
+    return {
+        lib_battle_common = lib_battle_common,
+        deal_damage_to_character = deal_damage_to_character,
+        find_card_side = _find_card_side,
+        find_item_def = _find_item_def,
+        find_line_card_by_code = _find_line_card_by_code,
+        find_line_character_by_race = _find_line_character_by_race,
+        find_line_card_by_type_and_char_code = _find_line_card_by_type_and_char_code,
+        expose_ability_selected_card = _expose_ability_selected_card,
+    }
 end
 
 -- Calls the handler for one ability key only if its registered event matches trigger_event.
 -- Returns: extra_client_actions (table), err (string or nil)
 local function _dispatch_one_ability(state, source_card, key, trigger_event, event_data)
     lib_battle_common.dlog("-- [ability] _dispatch_one_ability ----------------------")
-    local ability_def = get_ability_config(key)
+    local ability_def = ability_all.get_ability_config(key)
     if ability_def == nil then
         lib_battle_common.dlog("[ability] dispatch: key=" .. tostring(key) .. " UNKNOWN - not registered in get_ability_config")
         return {}, "unknown ability key: " .. tostring(key)
@@ -293,14 +354,14 @@ local function _dispatch_one_ability(state, source_card, key, trigger_event, eve
         return {}, target_err
     end
 
-    local ability_library = _get_ability_library(key)
-    if ability_library == nil or type(ability_library.execute) ~= "function" then
+    local ability_handler = _get_ability_handler(key)
+    if type(ability_handler) ~= "function" then
         lib_battle_common.dlog("[ability] dispatch: key=" .. key .. " ERROR - execute handler missing")
         return {}, "no handler for ability key: " .. tostring(key)
     end
 
     lib_battle_common.dlog("[ability] dispatch: key=" .. key .. " FIRING on event=" .. trigger_event)
-    return ability_library.execute(state, source_card, event_data, _ability_helpers)
+    return ability_handler(state, source_card, event_data, _build_ability_helpers())
 end
 
 -- Fires ALL abilities listed in card.metadata.abilities for the given trigger_event.

@@ -22,20 +22,20 @@ Use this package's contract files as the source of truth:
 - Do not use filesystem, network, modules, dynamic code loading, or unavailable standard libraries.
 - Do not use `dofile`, `loadfile`, `load`, `loadstring`, `require`, `module`, `getfenv`, `setfenv`, `collectgarbage`, or `string.dump`.
 
-## Library Scripts & Include Directives
+## Library Scripts & Require Directives
 
-A script may import shared library scripts using `include` directives at the top of the file:
+A script may import shared library scripts using `require` directives at the top of the file:
 
 ```lua
-include math_utils
-include combat_helpers
+require "math_utils"
+require "combat_helpers"
 
 output.damage = math_utils.clamp(payload.attack - payload.defense, 0, 999)
 ```
 
 - Each library is injected as a sandboxed global table; access its functions as `libname.func(args)`.
-- Library names must match `^[a-z][a-z0-9_]*$`. Maximum **7** active libraries per game.
-- **Inside a library script** (`is_library = true`): only define functions. No top-level executable statements, no `include` directives.
+- Library names must match `^[a-z][a-z0-9_]*$`.
+- **Inside a library script** (`is_library = true`): only define functions. No top-level executable statements, no `require` directives.
 
 ```lua
 -- Example library body (is_library = true)
