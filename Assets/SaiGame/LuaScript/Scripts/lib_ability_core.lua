@@ -1,4 +1,4 @@
--- lib_card_ability
+-- lib_ability_core
 -- Card ability triggering system.
 -- is_library = true
 --
@@ -10,8 +10,8 @@
 -- To add a new ability:
 --   1. Create/edit its source under `LuaScript/AbilitySources`.
 --   2. Add its config to `get_ability_config`.
---   3. Add a branch in `_get_ability_handler` so the dispatcher can call `ability_all.<ability>_execute(...)`.
---   4. Regenerate `Scripts/ability_all.lua` from the sources.
+--   3. Add a branch in `_get_ability_handler` so the dispatcher can call `lib_ability_all.<ability>_execute(...)`.
+--   4. Regenerate `Scripts/lib_ability_all.lua` from the sources.
 
 -- Valid target_positions:
 --   own_frontline
@@ -150,7 +150,7 @@ function get_target_position_key(state, source_card, zone_key)
 end
 
 function can_ability_target_position(state, source_card, ability_key, zone_key)
-    local ability_def = ability_all.get_ability_config(ability_key)
+    local ability_def = lib_ability_all.get_ability_config(ability_key)
     if ability_def == nil then
         return false, "unknown ability key: " .. tostring(ability_key)
     end
@@ -254,15 +254,15 @@ end
 
 local function _get_ability_handler(ability_key)
     if ability_key == "twin_reaper" then
-        return ability_all.twin_reaper_execute
+        return lib_ability_all.twin_reaper_execute
     elseif ability_key == "spinning_slash" then
-        return ability_all.spinning_slash_execute
+        return lib_ability_all.spinning_slash_execute
     elseif ability_key == "cross_guard" then
-        return ability_all.cross_guard_execute
+        return lib_ability_all.cross_guard_execute
     elseif ability_key == "totem_pulse" then
-        return ability_all.totem_pulse_execute
+        return lib_ability_all.totem_pulse_execute
     elseif ability_key == "back_stab" then
-        return ability_all.back_stab_execute
+        return lib_ability_all.back_stab_execute
     end
     return nil
 end
@@ -312,6 +312,21 @@ local function _find_line_card_by_type_and_char_code(line, item_defs, card_type_
     return fallback
 end
 
+
+local function _find_untriggered_card(line, filter_fn)
+    local fallback = nil
+    for _, card in ipairs(line or {}) do
+        local has_id = card.inventory_item_id ~= nil and card.inventory_item_id ~= ""
+        if has_id and card.trigger ~= true and filter_fn(card) then
+            if card.expose then
+                return card
+            elseif fallback == nil then
+                fallback = card
+            end
+        end
+    end
+    return fallback
+end
 local function _expose_ability_selected_card(state, card)
     if card == nil then return nil end
     card.face_up = true
@@ -330,6 +345,7 @@ local function _build_ability_helpers()
         find_line_card_by_code = _find_line_card_by_code,
         find_line_character_by_race = _find_line_character_by_race,
         find_line_card_by_type_and_char_code = _find_line_card_by_type_and_char_code,
+        find_untriggered_card = _find_untriggered_card,
         expose_ability_selected_card = _expose_ability_selected_card,
     }
 end
@@ -338,7 +354,7 @@ end
 -- Returns: extra_client_actions (table), err (string or nil)
 local function _dispatch_one_ability(state, source_card, key, trigger_event, event_data)
     lib_battle_common.dlog("-- [ability] _dispatch_one_ability ----------------------")
-    local ability_def = ability_all.get_ability_config(key)
+    local ability_def = lib_ability_all.get_ability_config(key)
     if ability_def == nil then
         lib_battle_common.dlog("[ability] dispatch: key=" .. tostring(key) .. " UNKNOWN - not registered in get_ability_config")
         return {}, "unknown ability key: " .. tostring(key)

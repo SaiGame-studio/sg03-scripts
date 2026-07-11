@@ -1,17 +1,14 @@
-﻿-- ability_all
--- Generated bundle from `Assets/SaiGame/LuaScript/AbilitySources`.
--- is_library = true
-
 function get_ability_config(ability_key)
     local configs = {
-        twin_reaper = { event = "on_attack", target_positions = { "enemy_frontline" } },
-        spinning_slash = { event = "on_attack", target_positions = { "enemy_frontline" } },
-        cross_guard = { event = "on_attack", target_positions = { "own_frontline" } },
-        totem_pulse = { event = "on_defend", target_positions = { "own_frontline" } },
-        back_stab = { event = "on_attack", target_positions = { "enemy_frontline" } },
+        twin_reaper = { target_positions = { "enemy_frontline" } },
+        spinning_slash = { target_positions = { "enemy_frontline" }, is_character_ability = true },
+        cross_guard = { target_positions = { "own_frontline" } },
+        totem_pulse = { target_positions = { "own_frontline" } },
+        back_stab = { target_positions = { "enemy_frontline" } },
     }
     return configs[ability_key]
 end
+
 
 -- ability: twin_reaper
 function twin_reaper_execute(state, attacker_card, event_data, helpers)
@@ -72,7 +69,6 @@ function twin_reaper_execute(state, attacker_card, event_data, helpers)
     end
     return ability_actions, nil
 end
-
 -- ability: spinning_slash
 function spinning_slash_execute(state, attacker_card, event_data, helpers)
     local battle = helpers.lib_battle_common
@@ -92,22 +88,12 @@ function spinning_slash_execute(state, attacker_card, event_data, helpers)
     local front_line = state[front_line_key] or {}
     battle.dlog("[ability] spinning_slash: attacker=" .. attacker_card.inventory_item_id .. " side=" .. attacker_side .. " selecting from " .. front_line_key)
 
-    local azure_blade_card = helpers.find_line_card_by_code(front_line, "azure_blade")
-    if azure_blade_card == nil then
-        battle.dlog("[ability] spinning_slash: error - no azure_blade in " .. front_line_key)
-        return {}, "spinning_slash requires azure_blade in front_line"
-    end
-    if defender.inventory_item_id == azure_blade_card.inventory_item_id then
-        battle.dlog("[ability] spinning_slash: error - defender matches selected azure_blade id=" .. tostring(azure_blade_card.inventory_item_id))
-        return {}, "spinning_slash cannot target the selected azure_blade"
-    end
+    local azure_blade_card = attacker_card
+    azure_blade_card.trigger = true
 
-    local attacker_item_def = helpers.find_item_def(state.item_defs, attacker_card.item_definition_code_name)
     local azure_blade_item_def = helpers.find_item_def(state.item_defs, azure_blade_card.item_definition_code_name)
-    local atk_add = (attacker_item_def ~= nil and attacker_item_def.base_stats ~= nil and attacker_item_def.base_stats.atk_add) or 0
-    local blade_atk = (azure_blade_item_def ~= nil and azure_blade_item_def.metadata ~= nil and azure_blade_item_def.metadata.atk) or 0
-    local damage = atk_add + blade_atk
-    battle.dlog("[ability] spinning_slash: azure_blade=" .. azure_blade_card.inventory_item_id .. " atk_add=" .. atk_add .. " blade_atk=" .. blade_atk .. " total_damage=" .. damage)
+    local damage = (azure_blade_item_def ~= nil and azure_blade_item_def.metadata ~= nil and azure_blade_item_def.metadata.atk) or 0
+    battle.dlog("[ability] spinning_slash: azure_blade=" .. azure_blade_card.inventory_item_id .. " total_damage=" .. damage)
 
     local defender_line = line_key ~= nil and state[line_key] or nil
     local expose_action = helpers.expose_ability_selected_card(state, azure_blade_card)
@@ -122,7 +108,6 @@ function spinning_slash_execute(state, attacker_card, event_data, helpers)
     end
     return ability_actions, nil
 end
-
 -- ability: cross_guard
 function cross_guard_execute(state, source_card, event_data, helpers)
     local battle = helpers.lib_battle_common
@@ -136,11 +121,12 @@ function cross_guard_execute(state, source_card, event_data, helpers)
 
     local source_side = helpers.find_card_side(state, source_card)
     local source_front_line_key = source_side .. "_front_line"
-    local azure_blade_card = helpers.find_line_card_by_code(state[source_front_line_key], "azure_blade")
+    local azure_blade_card = helpers.find_untriggered_card(state[source_front_line_key], function(c) return c.item_definition_code_name == "azure_blade" end)
     if azure_blade_card == nil then
-        battle.dlog("[ability] cross_guard: error - no azure_blade in " .. source_front_line_key)
-        return {}, "cross_guard requires azure_blade in front_line"
+        battle.dlog("[ability] cross_guard: error - no untriggered azure_blade in " .. source_front_line_key)
+        return {}, "cross_guard requires untriggered azure_blade in front_line"
     end
+    azure_blade_card.trigger = true
 
     local guard_bonus = 200
     local prev_def = target_card.final_def or 0
@@ -149,22 +135,12 @@ function cross_guard_execute(state, source_card, event_data, helpers)
     battle.dlog("[ability] cross_guard: target=" .. target_card.inventory_item_id .. " final_def " .. prev_def .. " -> " .. target_card.final_def)
     local guard_actions = {
         expose_action,
-        source_side .. "_card_ability:source=" .. source_card.inventory_item_id .. ",ability=cross_guard,target=" .. target_card.inventory_item_id .. ",selected=" .. azure_blade_card.inventory_item_id
+        source_side .. "_card_ability:source=" .. source_card.inventory_item_id .. ",ability=cross_guard,target=" .. target_card.inventory_item_id .. ",selected=" .. azure_blade_card.inventory_item_id,
+        source_side .. "_card_guarded:" .. target_card.inventory_item_id
     }
     return guard_actions, nil
 end
-
 -- ability: totem_pulse
-function totem_pulse_find_untriggered_goblin_shaman(front_line)
-    for _, front_card in ipairs(front_line) do
-        local has_id = front_card.inventory_item_id ~= nil and front_card.inventory_item_id ~= ""
-        local is_shaman = front_card.item_definition_code_name == "goblin_shaman"
-        if has_id and is_shaman and front_card.trigger ~= true then
-            return front_card
-        end
-    end
-    return nil
-end
 
 function totem_pulse_execute(state, source_card, event_data, helpers)
     local battle = helpers.lib_battle_common
@@ -177,13 +153,14 @@ function totem_pulse_execute(state, source_card, event_data, helpers)
     local def_add = (totem_item_def ~= nil and totem_item_def.base_stats ~= nil and totem_item_def.base_stats.def_add) or 0
     battle.dlog("[ability] totem_pulse: source=" .. source_card.inventory_item_id .. " side=" .. source_side .. " def_add=" .. def_add)
 
-    local shaman_card = totem_pulse_find_untriggered_goblin_shaman(front_line)
+    local shaman_card = helpers.find_untriggered_card(front_line, function(c) return c.item_definition_code_name == "goblin_shaman" end)
     if shaman_card == nil then
-        battle.dlog("[ability] totem_pulse: no untriggered goblin_shaman in " .. front_line_key .. ", skip")
-        return {}, nil
+        battle.dlog("[ability] totem_pulse: error - no untriggered goblin_shaman in " .. front_line_key)
+        return {}, "totem_pulse requires untriggered goblin_shaman in front_line"
     end
 
     battle.dlog("[ability] totem_pulse: untriggered goblin_shaman found: " .. shaman_card.inventory_item_id)
+    shaman_card.trigger = true
     local ability_actions = {}
     local expose_action = helpers.expose_ability_selected_card(state, shaman_card)
     if expose_action ~= nil then table.insert(ability_actions, expose_action) end
@@ -195,6 +172,7 @@ function totem_pulse_execute(state, source_card, event_data, helpers)
             battle.dlog("[ability] totem_pulse: buffed card=" .. front_card.inventory_item_id .. " final_def " .. prev_def .. " -> " .. front_card.final_def)
             local buff_action = source_side .. "_card_ability:source=" .. source_card.inventory_item_id .. ",ability=totem_pulse,target=" .. front_card.inventory_item_id .. ",selected=" .. shaman_card.inventory_item_id
             table.insert(ability_actions, buff_action)
+            table.insert(ability_actions, source_side .. "_card_guarded:" .. front_card.inventory_item_id)
         end
     end
 
@@ -206,9 +184,9 @@ function totem_pulse_execute(state, source_card, event_data, helpers)
     table.insert(state[void_key], source_card)
     battle.dlog("[ability] totem_pulse: source card sent to void=" .. void_key .. " id=" .. source_card.inventory_item_id)
     table.insert(ability_actions, source_side .. "_card_sent_to_void:" .. source_card.inventory_item_id)
+
     return ability_actions, nil
 end
-
 -- ability: back_stab
 function back_stab_execute(state, source_card, event_data, helpers)
     local battle = helpers.lib_battle_common
@@ -223,11 +201,15 @@ function back_stab_execute(state, source_card, event_data, helpers)
     local source_side = helpers.find_card_side(state, source_card)
     local front_line_key = source_side .. "_front_line"
     local front_line = state[front_line_key] or {}
-    local goblin_card = helpers.find_line_character_by_race(front_line, state.item_defs, "goblin")
+    local goblin_card = helpers.find_untriggered_card(front_line, function(c)
+        local def = helpers.find_item_def(state.item_defs, c.item_definition_code_name)
+        return def ~= nil and def.metadata ~= nil and def.metadata.race == "goblin"
+    end)
     if goblin_card == nil then
-        battle.dlog("[ability] back_stab: error - no goblin character in " .. front_line_key)
-        return {}, "back_stab requires a goblin character in front_line"
+        battle.dlog("[ability] back_stab: error - no untriggered goblin character in " .. front_line_key)
+        return {}, "back_stab requires untriggered goblin character in front_line"
     end
+    goblin_card.trigger = true
 
     if defender.inventory_item_id == goblin_card.inventory_item_id then
         battle.dlog("[ability] back_stab: error - defender matches selected goblin id=" .. tostring(goblin_card.inventory_item_id))
@@ -254,4 +236,3 @@ function back_stab_execute(state, source_card, event_data, helpers)
     end
     return ability_actions, nil
 end
-
