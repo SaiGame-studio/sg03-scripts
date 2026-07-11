@@ -1,6 +1,6 @@
 require "lib_battle_common"
-require "lib_card_ability"
-require "ability_all"
+require "lib_ability_core"
+require "lib_ability_all"
 
 -- alpha_card_deploy
 -- Finalizes the opening deploy for alpha (player) only.

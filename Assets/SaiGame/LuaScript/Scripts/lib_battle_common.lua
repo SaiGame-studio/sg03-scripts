@@ -265,9 +265,9 @@ local function fire_on_attack(state, attacker_card, attacker_def, defender_card,
 
     if attacker_def.metadata ~= nil and attacker_def.metadata.type == "ability" then
         local ability_key = attacker_card.item_definition_code_name
-        return lib_card_ability.trigger_ability_by_key(state, attacker_card, ability_key, "on_attack", atk_event_data)
+        return lib_ability_core.trigger_ability_by_key(state, attacker_card, ability_key, "on_attack", atk_event_data)
     end
-    return lib_card_ability.trigger_card_ability(state, attacker_card, "on_attack", atk_event_data)
+    return lib_ability_core.trigger_card_ability(state, attacker_card, "on_attack", atk_event_data)
 end
 
 local function fire_on_damaged(state, attacker_card, attacker_def, defender_card, defender_def, damage_dealt)
@@ -276,7 +276,7 @@ local function fire_on_damaged(state, attacker_card, attacker_def, defender_card
     def_event_data.damage_received = damage_dealt
     def_event_data.attacker_def    = attacker_def
     def_event_data.defender_def    = defender_def
-    return lib_card_ability.trigger_card_ability(state, defender_card, "on_damaged", def_event_data)
+    return lib_ability_core.trigger_card_ability(state, defender_card, "on_damaged", def_event_data)
 end
 
 local function append_attack_client_actions(state, attacker_side, defender_side, attacker_card, defender_card, dmg_actions, atk_actions, def_actions)
@@ -311,7 +311,7 @@ function card_attack_card(state, attacker_card, attacker_def, attacker_line_key,
 
     expose_attack_pair(attacker_card, defender_card)
 
-    local dmg_actions, dmg_err = lib_card_ability.deal_damage_to_character(
+    local dmg_actions, dmg_err = lib_ability_core.deal_damage_to_character(
         state, attacker_card, defender_card, damage_dealt, state[defender_line_key], defender_side_void
     )
     if dmg_err ~= nil then return dmg_err end

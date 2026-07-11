@@ -1,16 +1,11 @@
 require "lib_battle_common"
-require "lib_card_ability"
+require "lib_ability_core"
 require "lib_battle_entity_ai"
 require "enemy_ai_goblin_shaman"
-require "ability_all"
+require "lib_ability_all"
 
-local run_enemy_defend        -- forward declaration
 local apply_attack            -- forward declaration
 local commit_attack_result    -- forward declaration
-
--- alpha_card_active.lua
--- Resolves one alpha card action against a target card in the battle state.
--- Character cards deal their base_atk as damage; ability cards trigger their
 -- on_attack behavior through the shared battle helpers.
 -- Accumulated damage is stored directly on the card object inside the session state.
 -- If total_damage_received exceeds the defender's final_def, the card is defeated
@@ -179,7 +174,7 @@ local function activate_attack_ability(state,
     if attacker_type == "ability" then
         table.insert(allowed_ability_keys, attacker_card.item_definition_code_name)
     else
-        for _, ability_key in ipairs(lib_card_ability.get_ability_keys(attacker_card, state.item_defs)) do
+        for _, ability_key in ipairs(lib_ability_core.get_ability_keys(attacker_card, state.item_defs)) do
             table.insert(allowed_ability_keys, ability_key)
         end
     end
@@ -190,7 +185,7 @@ local function activate_attack_ability(state,
     local can_target = false
     local target_position = nil
     for _, ability_key in ipairs(allowed_ability_keys) do
-        local allowed, allowed_info = lib_card_ability.can_ability_target_position(
+        local allowed, allowed_info = lib_ability_core.can_ability_target_position(
             state,
             attacker_card,
             ability_key,
@@ -218,7 +213,7 @@ local function activate_attack_ability(state,
     local ability_actions
     local ability_err
     if attacker_type == "ability" then
-        ability_actions, ability_err = lib_card_ability.trigger_ability_by_key(
+        ability_actions, ability_err = lib_ability_core.trigger_ability_by_key(
             state,
             attacker_card,
             attacker_card.item_definition_code_name,
@@ -226,7 +221,7 @@ local function activate_attack_ability(state,
             event_data
         )
     else
-        ability_actions, ability_err = lib_card_ability.trigger_card_ability(
+        ability_actions, ability_err = lib_ability_core.trigger_card_ability(
             state,
             attacker_card,
             "on_attack",

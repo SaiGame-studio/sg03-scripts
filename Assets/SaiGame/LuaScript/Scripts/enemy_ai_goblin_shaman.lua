@@ -73,7 +73,7 @@ function goblin_shaman_trigger_defend_ability(state, source_card, ability_key)
     lib_battle_common.dlog("[entity_ai] pending_attack.damage_dealt=" .. tostring(state.pending_attack ~= nil and state.pending_attack.damage_dealt or "nil"))
     local defend_event_data = {}
     defend_event_data.pending_attack = state.pending_attack
-    local ability_actions, ability_err = lib_card_ability.trigger_ability_by_key(state, source_card, ability_key, "on_defend", defend_event_data)
+    local ability_actions, ability_err = lib_ability_core.trigger_ability_by_key(state, source_card, ability_key, "on_defend", defend_event_data)
     if ability_err ~= nil then
         lib_battle_common.dlog("[entity_ai] ability error: " .. ability_err)
         return ability_err
@@ -121,6 +121,20 @@ function defend(state)
         lib_battle_common.dlog("[entity_ai] goblin_shaman.defend: no totem_pulse in back_line, skip")
         return nil
     end
+
+    local omega_front_line = state.omega_front_line or {}
+    local has_shaman = false
+    for _, card in ipairs(omega_front_line) do
+        if card.item_definition_code_name == "goblin_shaman" and card.trigger ~= true then
+            has_shaman = true
+            break
+        end
+    end
+    if not has_shaman then
+        lib_battle_common.dlog("[entity_ai] goblin_shaman.defend: no untriggered goblin_shaman in front_line, skip totem_pulse")
+        return nil
+    end
+
     local ability_err = goblin_shaman_trigger_defend_ability(state, totem_card, "totem_pulse")
     if ability_err ~= nil then return ability_err end
     goblin_shaman_log_front_line_def(state.omega_front_line or {}, "omega")
@@ -164,9 +178,9 @@ function deploy(state)
         end
     end
 
-    -- Deploy totem_pulse cards to back (random face_up each).
+    -- Deploy totem_pulse cards to back (always face down).
     for _, deploy_card in ipairs(totem_pulse_cards) do
-        local face_up = math.random(0, 1) == 1
+        local face_up = false
         for slot_i = 1, slot_count do
             local existing = omega_back_line[slot_i]
             if existing == nil or existing.item_definition_code_name == nil or existing.item_definition_code_name == "" then
