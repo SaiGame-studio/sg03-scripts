@@ -1,7 +1,17 @@
-﻿-- ability_all
+-- ability_all
 -- Generated bundle from `Assets/SaiGame/LuaScript/AbilitySources`.
 -- is_library = true
 
+function get_ability_config(ability_key)
+    local configs = {
+        twin_reaper = { event = "on_attack", target_positions = { "enemy_frontline" } },
+        spinning_slash = { event = "on_attack", target_positions = { "enemy_frontline" } },
+        cross_guard = { event = "on_attack", target_positions = { "own_frontline" } },
+        totem_pulse = { event = "on_defend", target_positions = { "own_frontline" } },
+        back_stab = { event = "on_attack", target_positions = { "enemy_frontline" } },
+    }
+    return configs[ability_key]
+end
 -- ability: twin_reaper
 function twin_reaper_execute(state, attacker_card, event_data, helpers)
     local battle = helpers.lib_battle_common
@@ -99,10 +109,9 @@ function spinning_slash_execute(state, attacker_card, event_data, helpers)
     battle.dlog("[ability] spinning_slash: azure_blade=" .. azure_blade_card.inventory_item_id .. " atk_add=" .. atk_add .. " blade_atk=" .. blade_atk .. " total_damage=" .. damage)
 
     local defender_line = line_key ~= nil and state[line_key] or nil
-    azure_blade_card.face_up = true
-    azure_blade_card.expose = true
+    local expose_action = helpers.expose_ability_selected_card(state, azure_blade_card)
     local ability_actions = {
-        attacker_side .. "_card_expose:" .. azure_blade_card.inventory_item_id,
+        expose_action,
         attacker_side .. "_card_ability:" .. attacker_card.inventory_item_id .. ",spinning_slash," .. defender.inventory_item_id
     }
     local damage_actions, dmg_err = helpers.deal_damage_to_character(state, azure_blade_card, defender, damage, defender_line, void_key)
@@ -231,10 +240,9 @@ function back_stab_execute(state, source_card, event_data, helpers)
     local damage = (goblin_item_def ~= nil and goblin_item_def.base_stats ~= nil and goblin_item_def.base_stats.atk) or 1
     battle.dlog("[ability] back_stab: goblin=" .. goblin_card.inventory_item_id .. " target=" .. defender.inventory_item_id .. " damage=" .. damage)
 
-    goblin_card.face_up = true
-    goblin_card.expose = true
+    local expose_action = helpers.expose_ability_selected_card(state, goblin_card)
     local ability_actions = {
-        source_side .. "_card_expose:" .. goblin_card.inventory_item_id,
+        expose_action,
         source_side .. "_card_ability:" .. source_card.inventory_item_id .. ",back_stab," .. defender.inventory_item_id
     }
     local damage_actions, dmg_err = helpers.deal_damage_to_character(state, goblin_card, defender, damage, defender_line, void_key)
