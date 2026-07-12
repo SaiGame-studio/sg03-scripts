@@ -188,6 +188,9 @@ local function main()
     if state.status == "completed" then output.error = "battle is already completed" ; return end
     lib_battle_common.dlog("[alpha_defending_end] session loaded: " .. session_id)
 
+    if state.client_actions == nil then state.client_actions = {} end
+    lib_battle_common.append_client_action(state, "omega_take_lamp")
+
     local plan_err = execute_omega_planning(state)
     if plan_err ~= nil then output.error = plan_err ; return end
 
@@ -197,6 +200,8 @@ local function main()
     -- ── Re-plan omega's next attack after executing this round's plan ─────
     local next_plan_err = lib_battle_ai.omega_planning_to_attack(state)
     if next_plan_err ~= nil then output.error = next_plan_err ; return end
+
+    lib_battle_common.append_client_action(state, "alpha_take_lamp")
 
     state.action     = (state.action or 0) + 1
     state.updated_at = ctx.timestamp
