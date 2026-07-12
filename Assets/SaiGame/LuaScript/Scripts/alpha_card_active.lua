@@ -108,7 +108,12 @@ end
 
 -- Computes final damage dealt by the attacker
 local function compute_damage(attacker_def)
-    local base_atk     = (attacker_def.base_stats and attacker_def.base_stats.atk) or 0
+    local base_atk = 0
+    if attacker_def.base_stats ~= nil and attacker_def.base_stats.atk then
+        base_atk = attacker_def.base_stats.atk
+    elseif attacker_def.metadata ~= nil and attacker_def.metadata.atk then
+        base_atk = attacker_def.metadata.atk
+    end
     local damage_dealt = base_atk
     lib_battle_common.dlog("[alpha_card_active] compute_damage: base_atk=" .. base_atk .. " damage_dealt(debug override)=" .. damage_dealt)
     return damage_dealt
