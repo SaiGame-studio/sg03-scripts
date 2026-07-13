@@ -95,7 +95,13 @@ local function resolve_attack_plan(state, plan_entry)
 end
 
 local function compute_attack_damage(attacker_def)
-    return (attacker_def.base_stats and attacker_def.base_stats.atk) or 0
+    local base_atk = 0
+    if attacker_def.base_stats ~= nil and attacker_def.base_stats.atk then
+        base_atk = attacker_def.base_stats.atk
+    elseif attacker_def.metadata ~= nil and attacker_def.metadata.atk then
+        base_atk = attacker_def.metadata.atk
+    end
+    return base_atk
 end
 
 -- Phase 1: store pending_attack so future alpha-defend reactions can read/modify it.
@@ -153,12 +159,66 @@ local function execute_card_attack_plan(state, plan_entry)
     return nil
 end
 
+local function execute_omega_attack_alpha_hp_plan(state, plan_entry)
+    local named_lines = build_named_lines(state)
+    local attacker_card, attacker_line_key = find_card_in_lines(named_lines, plan_entry.attacker_inv_id)
+    if attacker_card == nil then
+        lib_battle_common.dlog("[alpha_defending_end] attacker card not found: " .. tostring(plan_entry.attacker_inv_id))
+        return nil
+    end
+
+    if attacker_card.trigger == true then
+        lib_battle_common.dlog("[alpha_defending_end] attacker already triggered, skipping: " .. attacker_card.inventory_item_id)
+        return nil
+    end
+
+    if not lib_battle_common.check_card_type(state.item_defs, attacker_card, "character") then
+        return "attacker is not a character"
+    end
+
+    -- Re-verify that alpha front line has no characters
+    for _, card in ipairs(state.alpha_front_line or {}) do
+        if lib_battle_common.check_card_type(state.item_defs, card, "character") then
+            return "cannot attack alpha_hp while alpha front line still has characters"
+        end
+    end
+
+    local attacker_def = find_item_def(state.item_defs, attacker_card.item_definition_code_name)
+    if attacker_def == nil then
+        return "attacker item def not found: " .. tostring(attacker_card.item_definition_code_name)
+    end
+
+    local damage = compute_attack_damage(attacker_def)
+    lib_battle_common.dlog("[alpha_defending_end] omega attacking alpha_hp directly: damage=" .. damage)
+
+    state.alpha_hp = (state.alpha_hp or 0) - damage
+    lib_battle_common.dlog("[alpha_defending_end] alpha_hp after attack=" .. state.alpha_hp)
+
+    attacker_card.trigger = true
+    attacker_card.face_up = true
+    attacker_card.expose  = true
+
+    lib_battle_common.append_client_action(state, "omega_card_expose:" .. attacker_card.inventory_item_id)
+    lib_battle_common.append_client_action(state, "omega_attack_alpha_hp:attacker_card_id=" .. attacker_card.inventory_item_id .. ",damage=" .. damage .. ",alpha_hp=" .. state.alpha_hp)
+
+    local alpha_defeated = state.alpha_hp <= 0
+    if alpha_defeated then
+        lib_battle_common.append_client_action(state, "battle_completed:omega")
+        state.status = "completed"
+    end
+
+    lib_battle_common.append_client_action(state, "omega_card_move_back_to_holder:" .. attacker_card.inventory_item_id)
+    return nil
+end
+
 local function execute_plan_entry(state, plan_entry)
     if type(plan_entry) ~= "table" or plan_entry.action == nil then
         return "invalid omega_planning entry"
     end
     if plan_entry.action == "card_attack_card" then
         return execute_card_attack_plan(state, plan_entry)
+    elseif plan_entry.action == "omega_attack_alpha_hp" then
+        return execute_omega_attack_alpha_hp_plan(state, plan_entry)
     end
     return "unsupported omega_planning action: " .. tostring(plan_entry.action)
 end
@@ -188,6 +248,9 @@ local function main()
     if state.status == "completed" then output.error = "battle is already completed" ; return end
     lib_battle_common.dlog("[alpha_defending_end] session loaded: " .. session_id)
 
+    if state.client_actions == nil then state.client_actions = {} end
+    lib_battle_common.append_client_action(state, "omega_take_lamp")
+
     local plan_err = execute_omega_planning(state)
     if plan_err ~= nil then output.error = plan_err ; return end
 
@@ -197,6 +260,8 @@ local function main()
     -- ── Re-plan omega's next attack after executing this round's plan ─────
     local next_plan_err = lib_battle_ai.omega_planning_to_attack(state)
     if next_plan_err ~= nil then output.error = next_plan_err ; return end
+
+    lib_battle_common.append_client_action(state, "alpha_take_lamp")
 
     state.action     = (state.action or 0) + 1
     state.updated_at = ctx.timestamp

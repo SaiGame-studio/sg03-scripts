@@ -213,10 +213,7 @@ end
 -- target_line and void_key may be nil if line removal is not needed.
 function deal_damage_to_character(state, attacker_card, target_card, damage, target_line, void_key)
     lib_battle_common.dlog("== [ability] deal_damage_to_character ====================")
-    if not lib_battle_common.check_card_type(state.item_defs, attacker_card, "character") then
-        lib_battle_common.dlog("[ability] deal_damage: skip - attacker is not character type")
-        return {}, nil
-    end
+    -- Removed attacker_card type check so any card (character, ability, equipment) can deal damage.
     if not lib_battle_common.check_card_type(state.item_defs, target_card, "character") then
         lib_battle_common.dlog("[ability] deal_damage: skip - target is not character type")
         return {}, nil

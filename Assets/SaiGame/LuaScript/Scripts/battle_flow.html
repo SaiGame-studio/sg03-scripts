@@ -174,7 +174,7 @@
           &nbsp;&nbsp;&nbsp;• load attacker only (check trigger=false)<br>
           &nbsp;&nbsp;&nbsp;• damage = attacker.base_atk · omega_hp -= damage<br>
           &nbsp;&nbsp;&nbsp;• attacker.trigger = true<br>
-          &nbsp;&nbsp;&nbsp;• client: alpha_attack_omega_hp:id,damage,hp_remaining<br><br>
+          &nbsp;&nbsp;&nbsp;• client: alpha_attack_omega_hp:attacker_card_id=id,damage=damage,omega_hp=hp_remaining<br><br>
           └ <strong style="color:#bfdbfe">defender = card</strong><br>
           &nbsp;&nbsp;&nbsp;① plan: pending_attack = {attacker_id, defender_id, damage}<br>
           &nbsp;&nbsp;&nbsp;② omega react: goblin_shaman → totem_pulse defend (có thể tăng defender.final_def)<br>
@@ -197,8 +197,8 @@
           &nbsp;&nbsp;&nbsp;• xóa deployed cards khỏi omega_hand<br>
           ⑤ omega_planning_to_attack → state.omega_planning<br>
           &nbsp;&nbsp;&nbsp;• chọn 1 untriggered character từ omega_front_line<br>
-          &nbsp;&nbsp;&nbsp;• target: alpha_front_line card có final_def thấp nhất (fallback: back_line)<br>
-          &nbsp;&nbsp;&nbsp;• client: omega_plan_attack:attacker_id,defender_id<br>
+          &nbsp;&nbsp;&nbsp;• target: alpha_hp nếu alpha front line không có character, ngược lại chọn alpha front line card có final_def thấp nhất (fallback: back_line)<br>
+          &nbsp;&nbsp;&nbsp;• client: <code>omega_planing_character_attack:attacker_id,defender_id/alpha_hp</code><br>
           &nbsp;&nbsp;&nbsp;• alpha_defending = true<br>
           ⑥ client: <code>alpha_take_lamp</code> · <code>alpha_turn_end:turn</code><br>
           ⑦ next_move = "omega_turn"
@@ -222,12 +222,17 @@
       <div class="node node-omega" style="min-width:400px;text-align:left;">
         <div style="text-align:center;font-weight:700;margin-bottom:8px;">alpha_defending_end</div>
         <div class="sub">
-          ① thực thi toàn bộ state.omega_planning (card_attack_card × N):<br>
+          ① thực thi toàn bộ state.omega_planning (card_attack_card hoặc omega_attack_alpha_hp × N):<br>
           &nbsp;&nbsp;&nbsp;• nếu attacker không còn trên field → bỏ qua (alpha phòng thủ thành công)<br>
-          &nbsp;&nbsp;&nbsp;• plan: pending_attack = {attacker_id, defender_id, damage}<br>
-          &nbsp;&nbsp;&nbsp;• (phase 2: reserved cho alpha defend reactions tương lai)<br>
-          &nbsp;&nbsp;&nbsp;• resolve: apply final damage · nếu defeated → card → void<br>
-          &nbsp;&nbsp;&nbsp;• client: omega_card_move_back_to_holder:id / card_defeated<br>
+          &nbsp;&nbsp;&nbsp;• <strong>card_attack_card</strong>:<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- plan: pending_attack = {attacker_id, defender_id, damage}<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- (phase 2: reserved cho alpha defend reactions tương lai)<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- resolve: apply final damage · nếu defeated → card → void<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- client: omega_card_move_back_to_holder:id / card_defeated<br>
+          &nbsp;&nbsp;&nbsp;• <strong>omega_attack_alpha_hp</strong>:<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- alpha_hp -= damage<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- client: <code>omega_attack_alpha_hp:attacker_card_id=id,damage=damage,alpha_hp=hp_remaining</code><br>
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- client: omega_card_move_back_to_holder:id / battle_completed:omega<br>
           ② clear omega_planning = {}<br>
           ③ omega_planning_to_attack(state) — (lib_battle_ai)<br>
           &nbsp;&nbsp;&nbsp;• nếu không còn untriggered attacker trên omega_front_line:<br>

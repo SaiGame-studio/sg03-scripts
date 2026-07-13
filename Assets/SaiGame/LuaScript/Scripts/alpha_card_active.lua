@@ -108,7 +108,12 @@ end
 
 -- Computes final damage dealt by the attacker
 local function compute_damage(attacker_def)
-    local base_atk     = (attacker_def.base_stats and attacker_def.base_stats.atk) or 0
+    local base_atk = 0
+    if attacker_def.base_stats ~= nil and attacker_def.base_stats.atk then
+        base_atk = attacker_def.base_stats.atk
+    elseif attacker_def.metadata ~= nil and attacker_def.metadata.atk then
+        base_atk = attacker_def.metadata.atk
+    end
     local damage_dealt = base_atk
     lib_battle_common.dlog("[alpha_card_active] compute_damage: base_atk=" .. base_atk .. " damage_dealt(debug override)=" .. damage_dealt)
     return damage_dealt
@@ -345,7 +350,7 @@ local function attack_omega_hp(session_id, state, attacker_card, attacker_def, i
     attacker_card.face_up  = true
     attacker_card.expose   = true
     lib_battle_common.append_client_action(state, "alpha_card_expose:" .. attacker_card.inventory_item_id)
-    lib_battle_common.append_client_action(state, "alpha_attack_omega_hp:" .. attacker_card.inventory_item_id .. "," .. damage .. "," .. state.omega_hp)
+    lib_battle_common.append_client_action(state, "alpha_attack_omega_hp:attacker_card_id=" .. attacker_card.inventory_item_id .. ",damage=" .. damage .. ",omega_hp=" .. state.omega_hp)
     local omega_defeated = state.omega_hp <= 0
     if omega_defeated then
         lib_battle_common.append_client_action(state, "battle_completed:alpha")

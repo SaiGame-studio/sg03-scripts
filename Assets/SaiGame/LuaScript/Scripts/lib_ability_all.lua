@@ -88,11 +88,27 @@ function spinning_slash_execute(state, attacker_card, event_data, helpers)
     local front_line = state[front_line_key] or {}
     battle.dlog("[ability] spinning_slash: attacker=" .. attacker_card.inventory_item_id .. " side=" .. attacker_side .. " selecting from " .. front_line_key)
 
-    local azure_blade_card = attacker_card
+    local azure_blade_card = helpers.find_untriggered_card(front_line, function(c) return c.item_definition_code_name == "azure_blade" end)
+    if azure_blade_card == nil then
+        battle.dlog("[ability] spinning_slash: error - no untriggered azure_blade in " .. front_line_key)
+        return {}, "spinning_slash requires untriggered azure_blade in front_line"
+    end
     azure_blade_card.trigger = true
 
+    local ability_item_def = helpers.find_item_def(state.item_defs, "spinning_slash")
+    local atk_add = 0
+    if ability_item_def ~= nil then
+        if ability_item_def.base_stats ~= nil and ability_item_def.base_stats.atk_add then
+            atk_add = ability_item_def.base_stats.atk_add
+        elseif ability_item_def.metadata ~= nil and ability_item_def.metadata.atk_add then
+            atk_add = ability_item_def.metadata.atk_add
+        end
+    end
+
     local azure_blade_item_def = helpers.find_item_def(state.item_defs, azure_blade_card.item_definition_code_name)
-    local damage = (azure_blade_item_def ~= nil and azure_blade_item_def.metadata ~= nil and azure_blade_item_def.metadata.atk) or 0
+    local char_atk = (azure_blade_item_def ~= nil and azure_blade_item_def.base_stats ~= nil and azure_blade_item_def.base_stats.atk) or 0
+
+    local damage = atk_add + char_atk
     battle.dlog("[ability] spinning_slash: azure_blade=" .. azure_blade_card.inventory_item_id .. " total_damage=" .. damage)
 
     local defender_line = line_key ~= nil and state[line_key] or nil
@@ -220,8 +236,19 @@ function back_stab_execute(state, source_card, event_data, helpers)
     local void_key = (event_data or {}).defender_side_void
     local defender_line = line_key ~= nil and state[line_key] or nil
 
+    local source_item_def = helpers.find_item_def(state.item_defs, source_card.item_definition_code_name)
+    local atk_add = 0
+    if source_item_def ~= nil then
+        if source_item_def.base_stats ~= nil and source_item_def.base_stats.atk_add then
+            atk_add = source_item_def.base_stats.atk_add
+        elseif source_item_def.metadata ~= nil and source_item_def.metadata.atk_add then
+            atk_add = source_item_def.metadata.atk_add
+        end
+    end
+
     local goblin_item_def = helpers.find_item_def(state.item_defs, goblin_card.item_definition_code_name)
-    local damage = (goblin_item_def ~= nil and goblin_item_def.base_stats ~= nil and goblin_item_def.base_stats.atk) or 1
+    local char_atk = (goblin_item_def ~= nil and goblin_item_def.base_stats ~= nil and goblin_item_def.base_stats.atk) or 1
+    local damage = atk_add + char_atk
     battle.dlog("[ability] back_stab: goblin=" .. goblin_card.inventory_item_id .. " target=" .. defender.inventory_item_id .. " damage=" .. damage)
 
     local expose_action = helpers.expose_ability_selected_card(state, goblin_card)
