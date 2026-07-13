@@ -350,7 +350,7 @@ local function attack_omega_hp(session_id, state, attacker_card, attacker_def, i
     attacker_card.face_up  = true
     attacker_card.expose   = true
     lib_battle_common.append_client_action(state, "alpha_card_expose:" .. attacker_card.inventory_item_id)
-    lib_battle_common.append_client_action(state, "alpha_attack_omega_hp:" .. attacker_card.inventory_item_id .. "," .. damage .. "," .. state.omega_hp)
+    lib_battle_common.append_client_action(state, "alpha_attack_omega_hp:attacker_card_id=" .. attacker_card.inventory_item_id .. ",damage=" .. damage .. ",omega_hp=" .. state.omega_hp)
     local omega_defeated = state.omega_hp <= 0
     if omega_defeated then
         lib_battle_common.append_client_action(state, "battle_completed:alpha")

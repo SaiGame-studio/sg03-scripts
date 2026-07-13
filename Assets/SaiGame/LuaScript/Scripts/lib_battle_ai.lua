@@ -398,6 +398,29 @@ function omega_planning_to_attack(state)
         return nil
     end
 
+    -- Check if we can attack alpha_hp directly (no character cards on alpha front line)
+    local has_alpha_front_character = false
+    for _, card in ipairs(state.alpha_front_line or {}) do
+        if lib_battle_common.check_card_type(state.item_defs, card, "character") then
+            has_alpha_front_character = true
+            break
+        end
+    end
+
+    if not has_alpha_front_character then
+        local plan_entry           = {}
+        plan_entry.action          = "omega_attack_alpha_hp"
+        plan_entry.attacker_inv_id = attacker_card.inventory_item_id
+        plan_entry.defender_inv_id = "alpha_hp"
+        table.insert(state.omega_planning, plan_entry)
+
+        lib_battle_common.append_client_action(state,
+            "omega_planing_character_attack:" .. attacker_card.inventory_item_id .. ",alpha_hp")
+        lib_battle_common.dlog("[lib_battle_ai] omega_planning_to_attack: planned direct attack " ..
+        attacker_card.inventory_item_id .. " -> alpha_hp")
+        return nil
+    end
+
     local defender_card = _pick_alpha_attack_target(state)
     if defender_card == nil then
         lib_battle_common.dlog("[lib_battle_ai] omega_planning_to_attack: no alpha target available")
