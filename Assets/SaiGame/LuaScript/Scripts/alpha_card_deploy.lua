@@ -27,11 +27,11 @@ local SLOT_COUNT = lib_battle_common.get_hand_size()
 local validate_payload        -- forward declaration
 local build_lines             -- forward declaration
 local verify_card_sets        -- forward declaration
-local check_front_line_limit  -- forward declaration
+local check_character_deploy_limit -- forward declaration
 local build_remaining_hand    -- forward declaration
 local append_alpha_deploy_client_actions -- forward declaration
 
-local function max_front_deploy_per_turn()
+local function max_character_deploy_per_turn()
     return 1
 end
 
@@ -59,7 +59,7 @@ local function main()
     local verify_err = verify_card_sets(state)
     if verify_err ~= nil then output.error = verify_err ; return end
 
-    local limit_err = check_front_line_limit(state)
+    local limit_err, has_new_char = check_character_deploy_limit(state)
     if limit_err ~= nil then output.error = limit_err ; return end
 
     local front_line, back_line, build_err = build_lines(state.alpha_hand, state.alpha_front_line, state.alpha_back_line)
@@ -86,6 +86,11 @@ local function main()
     state.alpha_hand       = build_remaining_hand(state.alpha_hand)
     state.alpha_front_line = front_line
     state.alpha_back_line  = back_line
+
+    if has_new_char then
+        if state.metadata == nil then state.metadata = {} end
+        state.metadata.last_char_deploy_turn = state.turn
+    end
 
     for _, deployed_card in ipairs(front_line) do
         lib_battle_common.reset_card_turn_state(state.item_defs, deployed_card)
@@ -269,25 +274,64 @@ verify_card_sets = function(state)
     return nil
 end
 
--- Enforces at most 1 new card deployed to front_line per turn. Returns err or nil.
-check_front_line_limit = function(state)
-    local existing_front_ids = {}
+-- Enforces at most 1 new character card deployed per turn. Ability cards are not limited.
+check_character_deploy_limit = function(state)
+    local state_cards = {}
+    for _, card in ipairs(state.alpha_hand or {}) do
+        if card.inventory_item_id ~= nil and card.inventory_item_id ~= "" then
+            state_cards[card.inventory_item_id] = card
+        end
+    end
     for _, card in ipairs(state.alpha_front_line or {}) do
         if card.inventory_item_id ~= nil and card.inventory_item_id ~= "" then
-            existing_front_ids[card.inventory_item_id] = true
+            state_cards[card.inventory_item_id] = card
         end
     end
-    local new_front_count = 0
-    for _, slot in ipairs(payload.front_line or {}) do
-        local inventory_item_id = slot.inventory_item_id
-        if inventory_item_id ~= nil and inventory_item_id ~= "" and not existing_front_ids[inventory_item_id] then
-            new_front_count = new_front_count + 1
+    for _, card in ipairs(state.alpha_back_line or {}) do
+        if card.inventory_item_id ~= nil and card.inventory_item_id ~= "" then
+            state_cards[card.inventory_item_id] = card
         end
     end
-    if new_front_count > max_front_deploy_per_turn() then
-        return "only " .. max_front_deploy_per_turn() .. " new card may be deployed to front_line per turn (" .. new_front_count .. " new cards received)"
+
+    local existing_line_ids = {}
+    for _, card in ipairs(state.alpha_front_line or {}) do
+        if card.inventory_item_id ~= nil and card.inventory_item_id ~= "" then
+            existing_line_ids[card.inventory_item_id] = true
+        end
     end
-    return nil
+    for _, card in ipairs(state.alpha_back_line or {}) do
+        if card.inventory_item_id ~= nil and card.inventory_item_id ~= "" then
+            existing_line_ids[card.inventory_item_id] = true
+        end
+    end
+
+    local new_character_count = 0
+    
+    local function count_new_characters_in_line(payload_line)
+        for _, slot in ipairs(payload_line or {}) do
+            local id = slot.inventory_item_id
+            if id ~= nil and id ~= "" and not existing_line_ids[id] then
+                local card = state_cards[id]
+                if card ~= nil and lib_battle_common.check_card_type(state.item_defs, card, "character") then
+                    new_character_count = new_character_count + 1
+                end
+            end
+        end
+    end
+
+    count_new_characters_in_line(payload.front_line)
+    count_new_characters_in_line(payload.back_line)
+
+    if new_character_count > 0 then
+        if new_character_count > max_character_deploy_per_turn() then
+            return "only " .. max_character_deploy_per_turn() .. " new character card may be deployed per turn (" .. new_character_count .. " new character cards received)", false
+        end
+        if state.metadata ~= nil and state.metadata.last_char_deploy_turn == state.turn then
+            return "only 1 character card may be deployed per turn (a character card was already deployed in turn " .. state.turn .. ")", false
+        end
+        return nil, true
+    end
+    return nil, false
 end
 
 -- Rebuilds alpha_hand from payload.hand, preserving slot positions.
