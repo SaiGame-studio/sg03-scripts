@@ -95,7 +95,13 @@ local function resolve_attack_plan(state, plan_entry)
 end
 
 local function compute_attack_damage(attacker_def)
-    return (attacker_def.base_stats and attacker_def.base_stats.atk) or 0
+    local base_atk = 0
+    if attacker_def.base_stats ~= nil and attacker_def.base_stats.atk then
+        base_atk = attacker_def.base_stats.atk
+    elseif attacker_def.metadata ~= nil and attacker_def.metadata.atk then
+        base_atk = attacker_def.metadata.atk
+    end
+    return base_atk
 end
 
 -- Phase 1: store pending_attack so future alpha-defend reactions can read/modify it.
