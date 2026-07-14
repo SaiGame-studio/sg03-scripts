@@ -377,12 +377,73 @@ local function main()
     if state_err ~= nil then output.error = state_err ; return end
     if state.status == "completed" then output.error = "battle is already completed" ; return end
 
-    if payload.defender_inventory_item_id == "omega_hp" then
+    if payload.defender_inventory_item_id == "alpha" or payload.defender_inventory_item_id == "omega_hp" then
         local attacker_card, attacker_line_key, attacker_def, ctx_err = resolve_attacker_context(state)
         if ctx_err ~= nil then output.error = ctx_err ; return end
-        local attack_err = attack_omega_hp(session_id, state, attacker_card, attacker_def, is_development)
-        if attack_err ~= nil then output.error = attack_err ; return end
-        return
+
+        local attacker_type = attacker_def.metadata ~= nil and attacker_def.metadata.type or nil
+        local has_abilities = false
+        if attacker_type == "ability" then
+            has_abilities = true
+        else
+            local keys = lib_ability_core.get_ability_keys(attacker_card, state.item_defs)
+            if keys ~= nil and #keys > 0 then
+                has_abilities = true
+            end
+        end
+
+        if has_abilities then
+            local possible_lines
+            if payload.defender_inventory_item_id == "alpha" then
+                possible_lines = { "alpha_the_source", "alpha_front_line", "alpha_back_line" }
+            else
+                possible_lines = { "omega_the_source", "omega_front_line", "omega_back_line" }
+            end
+
+            local resolved_line_key = nil
+            local allowed_keys = {}
+            if attacker_type == "ability" then
+                table.insert(allowed_keys, attacker_card.item_definition_code_name)
+            else
+                for _, k in ipairs(lib_ability_core.get_ability_keys(attacker_card, state.item_defs)) do
+                    table.insert(allowed_keys, k)
+                end
+            end
+
+            for _, line_key in ipairs(possible_lines) do
+                for _, ability_key in ipairs(allowed_keys) do
+                    local allowed = lib_ability_core.can_ability_target_position(state, attacker_card, ability_key, line_key)
+                    if allowed then
+                        resolved_line_key = line_key
+                        break
+                    end
+                end
+                if resolved_line_key then break end
+            end
+
+            if resolved_line_key == nil then
+                resolved_line_key = possible_lines[1]
+            end
+
+            local ability_err = activate_attack_ability(
+                state,
+                attacker_card, attacker_line_key, attacker_def,
+                nil, nil, resolved_line_key, nil
+            )
+            if ability_err ~= nil then output.error = ability_err ; return end
+            local commit_err = commit_attack_result(session_id, state, is_development)
+            if commit_err ~= nil then output.error = commit_err ; return end
+            return
+        else
+            if payload.defender_inventory_item_id == "alpha" then
+                output.error = "cannot attack own hp"
+                return
+            end
+
+            local attack_err = attack_omega_hp(session_id, state, attacker_card, attacker_def, is_development)
+            if attack_err ~= nil then output.error = attack_err ; return end
+            return
+        end
     end
 
     local attacker_card, attacker_line_key, attacker_def,

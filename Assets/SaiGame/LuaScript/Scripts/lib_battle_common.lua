@@ -176,6 +176,7 @@ end
 local function write_alpha_state_output(state, session_id)
     output.session_id             = session_id
     output.alpha_hp               = state.alpha_hp
+    output.alpha_max_hp           = state.alpha_max_hp
     output.alpha_the_source       = state.alpha_the_source
     output.alpha_the_source_count = state.alpha_the_source ~= nil and #state.alpha_the_source or 0
     output.alpha_the_void         = state.alpha_the_void
@@ -187,6 +188,7 @@ end
 
 local function write_omega_state_output(state)
     output.omega_hp               = state.omega_hp
+    output.omega_max_hp           = state.omega_max_hp
     output.omega_the_source_count = state.omega_the_source ~= nil and #state.omega_the_source or 0
     output.omega_the_void         = state.omega_the_void
     output.omega_the_void_count   = state.omega_the_void ~= nil and #state.omega_the_void or 0
