@@ -141,12 +141,14 @@ build_state = function(enemy, selected_mode, player_the_source, enemy_the_source
         },
         alpha_preset_metadata  = preset ~= nil and preset.metadata or nil,
         alpha_hp           = hp,
+        alpha_max_hp       = hp,
         alpha_the_source   = player_the_source,
         alpha_the_void     = {},
         alpha_hand         = { {}, {}, {}, {}, {} },  -- 5 slots
         alpha_front_line   = { {}, {}, {}, {}, {} },  -- 5 slots
         alpha_back_line    = { {}, {}, {}, {}, {} },  -- 5 slots
         omega_hp           = hp,
+        omega_max_hp       = hp,
         omega_the_source   = enemy_the_source,
         omega_the_void     = {},
         omega_hand         = { {}, {}, {}, {}, {} },  -- 5 slots

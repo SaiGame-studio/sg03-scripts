@@ -13,17 +13,6 @@
 --   3. Add a branch in `_get_ability_handler` so the dispatcher can call `lib_ability_all.<ability>_execute(...)`.
 --   4. Regenerate `Scripts/lib_ability_all.lua` from the sources.
 
--- Valid target_positions:
---   own_frontline
---   own_backline
---   own_hand
---   own_void
---   own_source
---   enemy_frontline
---   enemy_backline
---   enemy_hand
---   enemy_void
---   enemy_source
 
 -- Parses card.metadata.abilities into an array of trimmed, non-empty keys.
 -- Falls back to item_def.metadata.abilities when the card instance does not carry abilities.
@@ -260,6 +249,8 @@ local function _get_ability_handler(ability_key)
         return lib_ability_all.totem_pulse_execute
     elseif ability_key == "back_stab" then
         return lib_ability_all.back_stab_execute
+    elseif ability_key == "holy_glow" then
+        return lib_ability_all.holy_glow_execute
     end
     return nil
 end
