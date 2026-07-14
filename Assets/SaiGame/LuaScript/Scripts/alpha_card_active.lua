@@ -338,8 +338,8 @@ local function attack_omega_hp(session_id, state, attacker_card, attacker_def, i
         return "attacker is not a character"
     end
     for _, card in ipairs(state.omega_front_line or {}) do
-        if lib_battle_common.check_card_type(state.item_defs, card, "character") then
-            return "cannot attack omega_hp while omega front line still has characters"
+        if card.inventory_item_id ~= nil and card.inventory_item_id ~= "" then
+            return "cannot attack omega while omega front line still has cards"
         end
     end
     local damage = compute_damage(attacker_def)
@@ -377,22 +377,14 @@ local function main()
     if state_err ~= nil then output.error = state_err ; return end
     if state.status == "completed" then output.error = "battle is already completed" ; return end
 
-    if payload.defender_inventory_item_id == "alpha" or payload.defender_inventory_item_id == "omega_hp" then
+    if payload.defender_inventory_item_id == "alpha" or payload.defender_inventory_item_id == "omega" or payload.defender_inventory_item_id == "omega_hp" then
         local attacker_card, attacker_line_key, attacker_def, ctx_err = resolve_attacker_context(state)
         if ctx_err ~= nil then output.error = ctx_err ; return end
 
         local attacker_type = attacker_def.metadata ~= nil and attacker_def.metadata.type or nil
-        local has_abilities = false
-        if attacker_type == "ability" then
-            has_abilities = true
-        else
-            local keys = lib_ability_core.get_ability_keys(attacker_card, state.item_defs)
-            if keys ~= nil and #keys > 0 then
-                has_abilities = true
-            end
-        end
+        local is_spell_ability = (attacker_type == "ability")
 
-        if has_abilities then
+        if is_spell_ability then
             local possible_lines
             if payload.defender_inventory_item_id == "alpha" then
                 possible_lines = { "alpha_the_source", "alpha_front_line", "alpha_back_line" }
